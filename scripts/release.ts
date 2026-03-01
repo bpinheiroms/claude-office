@@ -64,6 +64,9 @@ const SECTION_MAP: Record<string, string> = {
   chore: 'Changed',
 };
 
+/** Types that trigger a patch version bump (docs/style/test/build do not) */
+const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'ci', 'chore']);
+
 interface ParsedCommit {
   type: string;
   scope: string;
@@ -192,7 +195,7 @@ function detectBump(): Bump | null {
     if (parsed.type === 'feat') {
       bump = 'minor';
     }
-    if (bump === null && SECTION_MAP[parsed.type]) {
+    if (bump === null && PATCH_TYPES.has(parsed.type)) {
       bump = 'patch';
     }
   }
