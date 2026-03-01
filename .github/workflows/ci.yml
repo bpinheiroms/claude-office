@@ -24,9 +24,42 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Statusline produces output
-        run: echo '{}' | bun run src/statusline/index.ts | head -1
-      - name: Statusline with full stdin
+
+      - name: Statusline produces output (empty stdin)
         run: |
-          echo '{"model":{"display_name":"Opus"},"context_window":{"current_usage":{"input_tokens":45000},"context_window_size":200000}}' \
-            | bun run src/statusline/index.ts | head -1
+          output=$(echo '{}' | bun run src/statusline/index.ts)
+          if [ -z "$output" ]; then
+            echo "::error::Statusline produced no output"
+            exit 1
+          fi
+          echo "$output"
+
+      - name: Statusline produces output (full stdin)
+        run: |
+          output=$(echo '{"model":{"display_name":"Opus"},"context_window":{"current_usage":{"input_tokens":45000},"context_window_size":200000}}' \
+            | bun run src/statusline/index.ts)
+          if [ -z "$output" ]; then
+            echo "::error::Statusline produced no output"
+            exit 1
+          fi
+          echo "$output"
+
+      - name: Statusline completes under 500ms
+        run: |
+          start=$(date +%s%N)
+          echo '{}' | bun run src/statusline/index.ts > /dev/null
+          end=$(date +%s%N)
+          ms=$(( (end - start) / 1000000 ))
+          echo "Statusline completed in ${ms}ms"
+          if [ "$ms" -gt 500 ]; then
+            echo "::warning::Statusline took ${ms}ms (budget: 300ms)"
+          fi
+
+      - name: Statusline handles missing ~/.claude gracefully
+        run: |
+          output=$(echo '{}' | HOME=/tmp/ci-no-claude bun run src/statusline/index.ts)
+          if [ -z "$output" ]; then
+            echo "::error::Statusline crashed with missing ~/.claude"
+            exit 1
+          fi
+          echo "OK: produced output without ~/.claude"
