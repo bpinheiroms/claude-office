@@ -82,7 +82,15 @@ function parseCommitLine(line: string): ParsedCommit | null {
   };
 }
 
-function getCommitsSinceLastTag(): string[] {
+interface CommitEntry {
+  subject: string;
+  body: string;
+}
+
+/** Match the conventional commit footer "BREAKING CHANGE:" or "BREAKING-CHANGE:" */
+const BREAKING_FOOTER_RE = /^BREAKING[ -]CHANGE\s*:/m;
+
+function getCommitsSinceLastTag(): CommitEntry[] {
   let lastTag = '';
   try {
     lastTag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf-8' }).trim();
@@ -92,8 +100,14 @@ function getCommitsSinceLastTag(): string[] {
 
   const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
   try {
-    const raw = execSync(`git log --pretty=format:"%s" ${range}`, { cwd: ROOT, encoding: 'utf-8' });
-    return raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const raw = execSync(`git log --pretty=format:"%B%x00" ${range}`, { cwd: ROOT, encoding: 'utf-8' });
+    return raw.split('\0').map(msg => {
+      const lines = msg.trim().split('\n');
+      return {
+        subject: lines[0]?.trim() || '',
+        body: lines.slice(1).join('\n').trim(),
+      };
+    }).filter(e => e.subject);
   } catch {
     return [];
   }
@@ -105,13 +119,13 @@ function generateChangelogSection(newVersion: string): string {
   const commits = getCommitsSinceLastTag();
   const sections: Record<string, string[]> = {};
 
-  for (const line of commits) {
-    if (line.startsWith('release:')) continue;
+  for (const { subject, body } of commits) {
+    if (subject.startsWith('release:')) continue;
 
-    const parsed = parseCommitLine(line);
+    const parsed = parseCommitLine(subject);
     if (!parsed) continue;
 
-    if (parsed.breaking) {
+    if (parsed.breaking || BREAKING_FOOTER_RE.test(body)) {
       sections['BREAKING'] ??= [];
       const scope = parsed.scope ? `**${parsed.scope}**: ` : '';
       sections['BREAKING'].push(`${scope}${parsed.message}`);
@@ -162,17 +176,17 @@ function updateChangelog(newVersion: string): void {
 // ── Version Bump Detection ───────────────────────────────────────────────────
 
 function detectBump(): Bump | null {
-  const lines = getCommitsSinceLastTag();
-  const nonRelease = lines.filter(l => !l.startsWith('release:'));
+  const commits = getCommitsSinceLastTag();
+  const nonRelease = commits.filter(c => !c.subject.startsWith('release:'));
   if (nonRelease.length === 0) return null;
 
   let bump: Bump | null = null;
 
-  for (const line of nonRelease) {
-    const parsed = parseCommitLine(line);
+  for (const { subject, body } of nonRelease) {
+    const parsed = parseCommitLine(subject);
     if (!parsed) continue;
 
-    if (parsed.breaking || /BREAKING CHANGE/.test(line)) {
+    if (parsed.breaking || BREAKING_FOOTER_RE.test(body)) {
       return 'major';
     }
     if (parsed.type === 'feat') {
