@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Cache files (runtime-generated)
+.quota-cache.json
+.agents-cache.json
+.usage-cache.json
