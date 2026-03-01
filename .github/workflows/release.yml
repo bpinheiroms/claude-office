@@ -37,21 +37,25 @@ jobs:
       - name: Determine version and bump
         id: bump
         run: |
-          result=$(bun run scripts/release.ts auto 2>&1)
+          result=$(bun run scripts/release.ts auto 2>&1) && rc=0 || rc=$?
           echo "$result"
           if echo "$result" | grep -q "SKIP_RELEASE"; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            tag=$(git describe --tags --abbrev=0)
-            tag_commit=$(git rev-parse "$tag^{commit}")
-            head_commit=$(git rev-parse HEAD)
-            if [ "$tag_commit" != "$head_commit" ]; then
-              echo "::error::Tag $tag points to $tag_commit but HEAD is $head_commit"
-              exit 1
-            fi
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if [ $rc -ne 0 ]; then
+            echo "::error::release.ts failed with exit code $rc"
+            exit $rc
+          fi
+          tag=$(git describe --tags --abbrev=0)
+          tag_commit=$(git rev-parse "$tag^{commit}")
+          head_commit=$(git rev-parse HEAD)
+          if [ "$tag_commit" != "$head_commit" ]; then
+            echo "::error::Tag $tag points to $tag_commit but HEAD is $head_commit"
+            exit 1
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       # Push the release commit and tag
       - name: Push release
