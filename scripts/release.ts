@@ -6,6 +6,7 @@
  *   bun run release:bump patch   # 1.0.0 → 1.0.1
  *   bun run release:bump minor   # 1.0.0 → 1.1.0
  *   bun run release:bump major   # 1.0.0 → 2.0.0
+ *   bun run release:bump auto    # detect bump from conventional commits
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -51,7 +52,6 @@ function updateChangelog(newVersion: string): void {
   const today = new Date().toISOString().split('T')[0];
   const header = `## [${newVersion}] - ${today}\n\n### Changed\n- \n`;
 
-  // Insert after the first "## [" line (or after the format description)
   const marker = '## [';
   const idx = content.indexOf(marker);
   if (idx >= 0) {
@@ -61,10 +61,85 @@ function updateChangelog(newVersion: string): void {
   console.log(`  ✓ CHANGELOG.md — added ${newVersion} section`);
 }
 
+/**
+ * Parse conventional commits since last tag to determine bump type.
+ * Returns null if no versionable commits found.
+ *
+ * Conventions:
+ *   feat!: or BREAKING CHANGE → major
+ *   feat:                      → minor
+ *   fix: / perf: / refactor:   → patch
+ *   chore: / docs: / ci: etc   → patch
+ */
+function detectBump(): Bump | null {
+  let lastTag = '';
+  try {
+    lastTag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf-8' }).trim();
+  } catch {
+    // No tags yet — treat all commits as new
+  }
+
+  const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
+  let commits: string;
+  try {
+    commits = execSync(`git log --pretty=format:"%s" ${range}`, { cwd: ROOT, encoding: 'utf-8' });
+  } catch {
+    return null;
+  }
+
+  if (!commits.trim()) return null;
+
+  const lines = commits.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Skip if the only commits are release commits
+  const nonRelease = lines.filter(l => !l.startsWith('release:'));
+  if (nonRelease.length === 0) return null;
+
+  let bump: Bump | null = null;
+
+  for (const line of nonRelease) {
+    // Breaking change → major
+    if (/^(feat|fix|perf|refactor|chore|docs|style|test|ci|build)(\(.+\))?!:/.test(line)) {
+      return 'major';
+    }
+    if (/BREAKING CHANGE/.test(line)) {
+      return 'major';
+    }
+    // Feature → minor
+    if (/^feat(\(.+\))?:/.test(line)) {
+      if (bump !== 'minor') bump = 'minor';
+    }
+    // Fix/perf/refactor → patch
+    if (/^(fix|perf|refactor)(\(.+\))?:/.test(line)) {
+      if (bump === null) bump = 'patch';
+    }
+    // chore/docs/style/test/ci/build → patch
+    if (/^(chore|docs|style|test|ci|build)(\(.+\))?:/.test(line)) {
+      if (bump === null) bump = 'patch';
+    }
+  }
+
+  return bump;
+}
+
 // --- Main ---
-const bump = process.argv[2] as Bump;
-if (!['major', 'minor', 'patch'].includes(bump)) {
-  console.error('Usage: bun run release:bump <major|minor|patch>');
+const arg = process.argv[2];
+const isCI = !!process.env.CI || !!process.env.GITHUB_ACTIONS;
+
+let bump: Bump;
+
+if (arg === 'auto') {
+  const detected = detectBump();
+  if (!detected) {
+    console.log('No versionable commits since last tag. SKIP_RELEASE');
+    process.exit(0);
+  }
+  bump = detected;
+  console.log(`Auto-detected bump: ${bump}`);
+} else if (['major', 'minor', 'patch'].includes(arg)) {
+  bump = arg as Bump;
+} else {
+  console.error('Usage: bun run release:bump <major|minor|patch|auto>');
   process.exit(1);
 }
 
@@ -83,12 +158,21 @@ updateChangelog(next);
 
 // Git commit and tag
 console.log('\nCommitting and tagging...\n');
-execSync(`git add -A`, { cwd: ROOT, stdio: 'inherit' });
+
+if (isCI) {
+  execSync('git config user.name "github-actions[bot]"', { cwd: ROOT, stdio: 'inherit' });
+  execSync('git config user.email "github-actions[bot]@users.noreply.github.com"', { cwd: ROOT, stdio: 'inherit' });
+}
+
+execSync('git add -A', { cwd: ROOT, stdio: 'inherit' });
 execSync(`git commit -m "release: v${next}"`, { cwd: ROOT, stdio: 'inherit' });
 execSync(`git tag v${next}`, { cwd: ROOT, stdio: 'inherit' });
 
 console.log(`\n✅ Release v${next} ready!`);
-console.log(`\nNext steps:`);
-console.log(`  1. Edit CHANGELOG.md with release notes`);
-console.log(`  2. git push origin main --tags`);
-console.log(`  3. GitHub Actions will create the release automatically\n`);
+
+if (!isCI) {
+  console.log(`\nNext steps:`);
+  console.log(`  1. Edit CHANGELOG.md with release notes`);
+  console.log(`  2. git push origin main --tags`);
+  console.log(`  3. GitHub Actions will create the release automatically\n`);
+}

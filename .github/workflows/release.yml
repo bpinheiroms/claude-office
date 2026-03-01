@@ -2,24 +2,61 @@ name: Release
 
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # Skip release commits pushed by this workflow
+    if: "!startsWith(github.event.head_commit.message, 'release:')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+
+      # Safety net — typecheck + smoke test before releasing
       - run: bun run typecheck
       - name: Statusline smoke test
-        run: echo '{}' | bun run src/statusline/index.ts | head -1
+        run: |
+          output=$(echo '{}' | bun run src/statusline/index.ts)
+          if [ -z "$output" ]; then
+            echo "::error::Statusline produced no output"
+            exit 1
+          fi
+
+      # Auto-detect version bump from conventional commits
+      - name: Determine version and bump
+        id: bump
+        run: |
+          result=$(bun run scripts/release.ts auto 2>&1) || true
+          echo "$result"
+          if echo "$result" | grep -q "SKIP_RELEASE"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Push the release commit and tag
+      - name: Push release
+        if: steps.bump.outputs.skip != 'true'
+        run: |
+          git push origin main --tags
+
+      # Create GitHub Release
       - name: Create GitHub Release
+        if: steps.bump.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.bump.outputs.tag }}
           generate_release_notes: true
