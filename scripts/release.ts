@@ -22,6 +22,8 @@ const FILES = [
 
 type Bump = 'major' | 'minor' | 'patch';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function bumpVersion(version: string, bump: Bump): string {
   const [major, minor, patch] = version.split('.').map(Number);
   switch (bump) {
@@ -46,83 +48,146 @@ function updateFile(filePath: string, newVersion: string): void {
   console.log(`  ✓ ${filePath} → ${newVersion}`);
 }
 
-function updateChangelog(newVersion: string): void {
-  const path = join(ROOT, 'CHANGELOG.md');
-  const content = readFileSync(path, 'utf-8');
-  const today = new Date().toISOString().split('T')[0];
-  const header = `## [${newVersion}] - ${today}\n\n### Changed\n- \n`;
+// ── Conventional Commit Parsing ──────────────────────────────────────────────
 
-  const marker = '## [';
-  const idx = content.indexOf(marker);
-  if (idx >= 0) {
-    const updated = content.slice(0, idx) + header + '\n' + content.slice(idx);
-    writeFileSync(path, updated);
-  }
-  console.log(`  ✓ CHANGELOG.md — added ${newVersion} section`);
+/** Map conventional commit prefixes to Keep a Changelog sections */
+const SECTION_MAP: Record<string, string> = {
+  feat: 'Added',
+  fix: 'Fixed',
+  perf: 'Performance',
+  refactor: 'Changed',
+  docs: 'Documentation',
+  style: 'Changed',
+  test: 'Changed',
+  ci: 'Changed',
+  build: 'Changed',
+  chore: 'Changed',
+};
+
+interface ParsedCommit {
+  type: string;
+  scope: string;
+  breaking: boolean;
+  message: string;
 }
 
-/**
- * Parse conventional commits since last tag to determine bump type.
- * Returns null if no versionable commits found.
- *
- * Conventions:
- *   feat!: or BREAKING CHANGE → major
- *   feat:                      → minor
- *   fix: / perf: / refactor:   → patch
- *   chore: / docs: / ci: etc   → patch
- */
-function detectBump(): Bump | null {
+function parseCommitLine(line: string): ParsedCommit | null {
+  const match = line.match(/^(\w+)(\(([^)]+)\))?(!)?\s*:\s*(.+)/);
+  if (!match) return null;
+  return {
+    type: match[1],
+    scope: match[3] || '',
+    breaking: !!match[4],
+    message: match[5].trim(),
+  };
+}
+
+function getCommitsSinceLastTag(): string[] {
   let lastTag = '';
   try {
     lastTag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf-8' }).trim();
   } catch {
-    // No tags yet — treat all commits as new
+    // No tags yet
   }
 
   const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
-  let commits: string;
   try {
-    commits = execSync(`git log --pretty=format:"%s" ${range}`, { cwd: ROOT, encoding: 'utf-8' });
+    const raw = execSync(`git log --pretty=format:"%s" ${range}`, { cwd: ROOT, encoding: 'utf-8' });
+    return raw.split('\n').map(l => l.trim()).filter(Boolean);
   } catch {
-    return null;
+    return [];
+  }
+}
+
+// ── CHANGELOG Generation ─────────────────────────────────────────────────────
+
+function generateChangelogSection(newVersion: string): string {
+  const commits = getCommitsSinceLastTag();
+  const sections: Record<string, string[]> = {};
+
+  for (const line of commits) {
+    if (line.startsWith('release:')) continue;
+
+    const parsed = parseCommitLine(line);
+    if (!parsed) continue;
+
+    if (parsed.breaking) {
+      sections['BREAKING'] ??= [];
+      const scope = parsed.scope ? `**${parsed.scope}**: ` : '';
+      sections['BREAKING'].push(`${scope}${parsed.message}`);
+    }
+
+    const section = SECTION_MAP[parsed.type];
+    if (!section) continue;
+
+    sections[section] ??= [];
+    const scope = parsed.scope ? `**${parsed.scope}**: ` : '';
+    sections[section].push(`${scope}${parsed.message}`);
   }
 
-  if (!commits.trim()) return null;
+  const today = new Date().toISOString().split('T')[0];
+  const lines: string[] = [`## [${newVersion}] - ${today}`];
 
-  const lines = commits.split('\n').map(l => l.trim()).filter(Boolean);
+  // Ordered: Breaking first, then Added, Fixed, Changed, Performance, Documentation
+  const order = ['BREAKING', 'Added', 'Fixed', 'Changed', 'Performance', 'Documentation'];
+  for (const key of order) {
+    const items = sections[key];
+    if (!items?.length) continue;
+    lines.push('');
+    lines.push(`### ${key === 'BREAKING' ? 'BREAKING CHANGES' : key}`);
+    for (const item of items) {
+      lines.push(`- ${item}`);
+    }
+  }
 
-  // Skip if the only commits are release commits
+  return lines.join('\n');
+}
+
+function updateChangelog(newVersion: string): void {
+  const path = join(ROOT, 'CHANGELOG.md');
+  const content = readFileSync(path, 'utf-8');
+  const section = generateChangelogSection(newVersion);
+
+  const marker = '## [';
+  const idx = content.indexOf(marker);
+  if (idx >= 0) {
+    const updated = content.slice(0, idx) + section + '\n\n' + content.slice(idx);
+    writeFileSync(path, updated);
+  } else {
+    writeFileSync(path, content.trimEnd() + '\n\n' + section + '\n');
+  }
+  console.log(`  ✓ CHANGELOG.md — generated from commits`);
+}
+
+// ── Version Bump Detection ───────────────────────────────────────────────────
+
+function detectBump(): Bump | null {
+  const lines = getCommitsSinceLastTag();
   const nonRelease = lines.filter(l => !l.startsWith('release:'));
   if (nonRelease.length === 0) return null;
 
   let bump: Bump | null = null;
 
   for (const line of nonRelease) {
-    // Breaking change → major
-    if (/^(feat|fix|perf|refactor|chore|docs|style|test|ci|build)(\(.+\))?!:/.test(line)) {
+    const parsed = parseCommitLine(line);
+    if (!parsed) continue;
+
+    if (parsed.breaking || /BREAKING CHANGE/.test(line)) {
       return 'major';
     }
-    if (/BREAKING CHANGE/.test(line)) {
-      return 'major';
+    if (parsed.type === 'feat') {
+      bump = 'minor';
     }
-    // Feature → minor
-    if (/^feat(\(.+\))?:/.test(line)) {
-      if (bump !== 'minor') bump = 'minor';
-    }
-    // Fix/perf/refactor → patch
-    if (/^(fix|perf|refactor)(\(.+\))?:/.test(line)) {
-      if (bump === null) bump = 'patch';
-    }
-    // chore/docs/style/test/ci/build → patch
-    if (/^(chore|docs|style|test|ci|build)(\(.+\))?:/.test(line)) {
-      if (bump === null) bump = 'patch';
+    if (bump === null && SECTION_MAP[parsed.type]) {
+      bump = 'patch';
     }
   }
 
   return bump;
 }
 
-// --- Main ---
+// ── Main ─────────────────────────────────────────────────────────────────────
+
 const arg = process.argv[2];
 const isCI = !!process.env.CI || !!process.env.GITHUB_ACTIONS;
 
@@ -172,7 +237,6 @@ console.log(`\n✅ Release v${next} ready!`);
 
 if (!isCI) {
   console.log(`\nNext steps:`);
-  console.log(`  1. Edit CHANGELOG.md with release notes`);
-  console.log(`  2. git push origin main --tags`);
-  console.log(`  3. GitHub Actions will create the release automatically\n`);
+  console.log(`  1. git push origin main --tags`);
+  console.log(`  2. GitHub Actions will create the release automatically\n`);
 }
