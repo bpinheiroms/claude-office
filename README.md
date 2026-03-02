@@ -6,11 +6,11 @@ A Claude Code statusline plugin that shows your plan quota, real-time costs, and
 [![Stars](https://img.shields.io/github/stars/bpinheiroms/claude-office)](https://github.com/bpinheiroms/claude-office/stargazers)
 ![Bun](https://img.shields.io/badge/runtime-bun-F9A03C)
 
-### Full preset (expanded layout)
+## Full preset (expanded layout)
 
 ![Claude Office — full preset](preview-full.png)
 
-### Minimal preset (compact layout)
+## Minimal preset (compact layout)
 
 ![Claude Office — minimal preset](preview-minimal.png)
 
@@ -26,12 +26,12 @@ bun install
 ```
 
 **Step 2: Set up the statusline**
-```
+```text
 /claude-office:setup
 ```
 
 **Step 3: Customize (optional)**
-```
+```text
 /claude-office:configure
 ```
 
@@ -59,24 +59,24 @@ Claude Office answers three questions you always have while using Claude Code:
 
 ### Compact layout (default)
 
-```
-Max  5h ██░░░░░░░░ 14%  Current Context ████░░░░░░ 43%  Today $51  Monthly Saving +$16
+```text
+Max  5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%  Today $51  Monthly Saving +$16
 ```
 
 Everything on a single line: plan name, 5-hour quota bar, context usage, today's cost, and monthly saving.
 
 ### Expanded layout
 
-```
+```text
 Max  Today $51  Week $665  Month $216  Monthly Saving +$16
-5h ██░░░░░░░░ 14%  7d ███░░░░░░░ 25%  Current Context ████░░░░░░ 43%
+5h ●●○○○○○○○○ 14%  7d ●●●○○○○○○○ 25%  Current Context ●●●●○○○○○○ 43%
 ```
 
 Line 1 shows plan name and all cost breakdowns. Line 2 shows quota bars and context usage.
 
 ### Activity lines (optional, enable via config)
 
-```
+```text
 ◐ Read: .../file.ts | ✓ Edit ×10 | ✓ Bash ×3               ← Tools
 ◐ Explore [sonnet]: Exploring auth module (2m 15s)           ← Agents
 ▸ Implement login flow (3/7)                                 ← Todos
@@ -99,7 +99,7 @@ These appear only when there's activity to show.
 
 Claude Code invokes the statusline process every ~300ms, piping a JSON payload to stdin with model, context, and session info. The process collects data, renders ANSI output, and exits.
 
-```
+```text
 Claude Code ──stdin JSON──▸ claude-office ──stdout──▸ terminal statusline
                                 │
               ┌─────────────────┼─────────────────┐
@@ -164,7 +164,7 @@ The **Monthly Saving** indicator shows how much you're saving by using a Claude 
 
 ### How it's calculated
 
-```
+```text
 Monthly Saving = Month API-equivalent cost − Plan price
 ```
 
@@ -200,7 +200,7 @@ The refresh flow uses Anthropic's OAuth token endpoint (`console.anthropic.com/v
 
 Customize what's displayed:
 
-```
+```text
 /claude-office:configure
 ```
 
@@ -273,7 +273,7 @@ Claude Office runs exclusively on **Bun** — no Node.js runtime, no build step.
 
 The statusline is **stateless and single-shot**: each invocation reads stdin, checks caches, renders, writes stdout, and exits. No long-running process, no sockets, no daemon.
 
-```
+```text
 stdin → [config + stdin] → [quota + usage + transcript] → render → stdout → exit
          parallel phase 1         parallel phase 2
 ```
@@ -324,7 +324,7 @@ Budget: 300ms (Claude Code's maximum allowed statusline execution time).
 
 ## Project Structure
 
-```
+```text
 src/
   statusline/               Statusline plugin (stateless, <300ms)
     index.ts                Entry: stdin -> collect -> render -> stdout

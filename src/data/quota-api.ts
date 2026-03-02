@@ -169,10 +169,7 @@ async function tryRefreshAndRetry(
         } catch { /* use default */ }
 
         execFileSync('/usr/bin/security', [
-          'delete-generic-password', '-s', 'Claude Code-credentials',
-        ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS });
-        execFileSync('/usr/bin/security', [
-          'add-generic-password', '-s', 'Claude Code-credentials',
+          'add-generic-password', '-U', '-s', 'Claude Code-credentials',
           '-a', account, '-w', JSON.stringify(creds),
         ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS });
       }

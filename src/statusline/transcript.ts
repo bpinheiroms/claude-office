@@ -236,6 +236,7 @@ function processLine(line: string, state: ParseState): void {
             const todoContent = (t.content as string) || id;
             const status = normalizeTaskStatus(t.status) ?? 'pending';
             state.todos.push({ content: todoContent, status });
+            if (id) state.taskIdToIndex.set(id, state.todos.length - 1);
           }
         }
       } else if (block.name === 'TaskCreate') {
@@ -404,7 +405,7 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   }
 
   // Incremental: file only grew (appended), restore state and parse new bytes
-  if (cache && cache.filePath === transcriptPath && cache.fileSize <= fileSize
+  if (cache && cache.filePath === transcriptPath && cache.fileSize < fileSize
       && cache.fileSize > 0) {
     const state = restoreState(cache);
     // Skip first partial line if reading mid-file

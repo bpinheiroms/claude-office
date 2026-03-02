@@ -37,7 +37,7 @@ These rules are non-negotiable. Follow them exactly.
 
 ## Project structure
 
-```
+```text
 src/
   statusline/               # Statusline plugin (stateless, single-shot)
     index.ts                # Entry: stdin -> config -> [quota, usage, transcript] -> render -> stdout
@@ -59,7 +59,7 @@ commands/
 
 ## Execution flow
 
-```
+```text
 Claude Code pipes stdin JSON every ~300ms
   │
   ├─ Phase 1 (parallel): readStdin() + loadConfig()
@@ -96,7 +96,7 @@ Every data source has its own persistent file cache at `~/.claude/plugins/claude
 
 ### Expanded (preset: `full`)
 
-```
+```text
 Line 1: Plan  Today $XX  Week $XXX  Month $XXX  Monthly Saving +$XX
 Line 2: 5h ●●○○○○○○○○ XX%  7d ●●●○○○○○○○ XX%  Current Context ●●●●●○○○○○ XX%
 Line 3: ◐ Read: .../file.ts | ✓ Edit ×10 | ✓ Bash ×3          (tools)
@@ -108,7 +108,7 @@ Lines 3-5 only appear when there's activity and the corresponding config flag is
 
 ### Compact (preset: `minimal`)
 
-```
+```text
 Max  5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%  Today $51  Monthly Saving +$16
 ```
 

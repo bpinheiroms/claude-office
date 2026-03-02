@@ -145,10 +145,9 @@ function parseMessageCost(line: string, fallbackDateKey: string): MessageCost | 
     // Use message timestamp for accurate day bucketing
     const rawTs = msg.timestamp;
     let dateKey: string;
-    if (typeof rawTs === 'string') {
-      dateKey = toDateKey(new Date(rawTs));
-    } else if (typeof rawTs === 'number') {
-      dateKey = toDateKey(new Date(rawTs));
+    if (typeof rawTs === 'string' || typeof rawTs === 'number') {
+      const date = new Date(rawTs);
+      dateKey = isNaN(date.getTime()) ? fallbackDateKey : toDateKey(date);
     } else {
       dateKey = fallbackDateKey;
     }

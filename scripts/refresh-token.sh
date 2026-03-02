@@ -16,16 +16,15 @@ CREDS=$(/usr/bin/security find-generic-password -s "$KEYCHAIN_SERVICE" -w 2>/dev
 
 # Parse with python3 (available on all macOS)
 eval "$(echo "$CREDS" | python3 -c "
-import json, sys, time
+import json, sys, time, shlex
 d = json.load(sys.stdin).get('claudeAiOauth', {})
 at = d.get('accessToken', '')
 rt = d.get('refreshToken', '')
 exp = d.get('expiresAt', 0)
 now = int(time.time() * 1000)
-# Refresh if token expires within 30 minutes
 needs_refresh = 'true' if (exp > 0 and exp - now < 1800000) else 'false'
-print(f'ACCESS_TOKEN=\"{at}\"')
-print(f'REFRESH_TOKEN=\"{rt}\"')
+print(f'ACCESS_TOKEN={shlex.quote(at)}')
+print(f'REFRESH_TOKEN={shlex.quote(rt)}')
 print(f'EXPIRES_AT={exp}')
 print(f'NEEDS_REFRESH={needs_refresh}')
 " 2>/dev/null)" || exit 0
@@ -43,25 +42,27 @@ fi
 # Call token refresh endpoint
 RESPONSE=$(curl -s --max-time 5 -X POST "$TOKEN_URL" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token&refresh_token=${REFRESH_TOKEN}&client_id=${OAUTH_CLIENT_ID}" 2>/dev/null) || exit 0
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "refresh_token=${REFRESH_TOKEN}" \
+  --data-urlencode "client_id=${OAUTH_CLIENT_ID}" 2>/dev/null) || exit 0
 
 # Parse response
 eval "$(echo "$RESPONSE" | python3 -c "
-import json, sys, time
+import json, sys, time, shlex
 d = json.load(sys.stdin)
 at = d.get('access_token', '')
 rt = d.get('refresh_token', '')
 exp_in = d.get('expires_in', 0)
 err = d.get('error', '')
 if err:
-    print(f'NEW_ACCESS_TOKEN=\"\"')
-    print(f'REFRESH_ERROR=\"{err}\"')
+    print(f'NEW_ACCESS_TOKEN={shlex.quote(str())}')
+    print(f'REFRESH_ERROR={shlex.quote(err)}')
 else:
     exp_at = int(time.time() * 1000) + (exp_in * 1000)
-    print(f'NEW_ACCESS_TOKEN=\"{at}\"')
-    print(f'NEW_REFRESH_TOKEN=\"{rt}\"')
+    print(f'NEW_ACCESS_TOKEN={shlex.quote(at)}')
+    print(f'NEW_REFRESH_TOKEN={shlex.quote(rt)}')
     print(f'NEW_EXPIRES_AT={exp_at}')
-    print(f'REFRESH_ERROR=\"\"')
+    print(f'REFRESH_ERROR={shlex.quote(str())}')
 " 2>/dev/null)" || exit 0
 
 # If refresh failed, nothing to do
@@ -90,7 +91,7 @@ print(json.dumps(d))
 ACCOUNT=$(/usr/bin/security find-generic-password -s "$KEYCHAIN_SERVICE" 2>/dev/null | grep "acct" | head -1 | sed 's/.*<blob>="\(.*\)"/\1/' 2>/dev/null) || ACCOUNT=""
 
 # Delete old and add new
-/usr/bin/security delete-generic-password -s "$KEYCHAIN_SERVICE" >/dev/null 2>&1 || true
+/usr/bin/security delete-generic-password -s "$KEYCHAIN_SERVICE" -a "${ACCOUNT:-claude}" >/dev/null 2>&1 || true
 /usr/bin/security add-generic-password -s "$KEYCHAIN_SERVICE" -a "${ACCOUNT:-claude}" -w "$UPDATED_CREDS" >/dev/null 2>&1 || exit 0
 
 exit 0

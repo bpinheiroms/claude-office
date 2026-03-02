@@ -159,18 +159,20 @@ function renderToolsLine(tools: ToolEntry[]): string | null {
     parts.push(`${C.active}\u2713${RST}${S}${name}${S}${C.dim}\u00D7${count}${RST}`);
   }
 
-  return parts.length > 0 ? parts.join(` ${C.dimmer}|${RST} `) : null;
+  return parts.length > 0 ? parts.join(`${S}${C.dimmer}|${RST}${S}`) : null;
 }
 
 function renderAgentLines(agents: AgentEntry[]): string[] {
   const running = agents.filter(a => a.status === 'running');
-  const recent = agents.filter(a => a.status === 'completed').slice(-2);
+  const recent = agents.filter(a => a.status === 'completed' || a.status === 'error').slice(-2);
   const toShow = [...running, ...recent].slice(-3);
 
   const lines: string[] = [];
   for (const a of toShow) {
     const icon = a.status === 'running'
       ? `${C.idle}\u25D0${RST}`
+      : a.status === 'error'
+      ? `${C.urgent}\u2717${RST}`
       : `${C.active}\u2713${RST}`;
     const type = `${C.sub}${a.type}${RST}`;
     const model = a.model ? `${S}${C.dim}[${a.model}]${RST}` : '';

@@ -19,7 +19,7 @@ Ask the user:
 
 > **How should the statusline be laid out?**
 >
-> 1. **Expanded** (recommended) — quota info on line 1, costs on line 2
+> 1. **Expanded** (recommended) — costs on line 1, quota bars on line 2
 > 2. **Compact** — everything on a single line
 
 ### A2. Choose preset
@@ -43,7 +43,7 @@ Show the user which elements are ON based on their chosen preset, then ask:
 > - Today cost (`showToday`)
 > - Week cost (`showWeek`)
 > - Month cost (`showMonth`)
-> - Saving indicator (`showSaving`)
+> - Monthly Saving indicator (`showSaving`)
 > - Tools activity (`showTools`)
 > - Agents status (`showAgents`)
 > - Todo progress (`showTodos`)
@@ -62,9 +62,9 @@ List only the elements that are currently OFF. Allow multiple selections or "non
 
 Show a preview of what the statusline will look like with their config, using a text mockup like:
 
-```
-Line 1: Max  5h ██░░░░░░░░ 15%  7d ██░░░░░░░░ 21%  Current Context ██░░░░░░░░ 34%
-Line 2: Today $3.40  Week $22  Saving +$180
+```text
+Line 1: Max  Today $3.40  Week $22  Monthly Saving +$180
+Line 2: 5h ●●○○○○○○○○ 15%  7d ●●○○○○○○○○ 21%  Current Context ●●●○○○○○○○ 34%
 ```
 
 (Adjust based on which elements are enabled and the chosen layout.)
