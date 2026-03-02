@@ -24,7 +24,7 @@
     },
     {
       "name": "configure",
-      "description": "Configure HUD display options (layout, presets, display elements)",
+      "description": "Configure Claude Office display options (layout, presets, display elements)",
       "file": "commands/configure.md"
     }
   ]
