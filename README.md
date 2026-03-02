@@ -6,8 +6,13 @@ A Claude Code statusline plugin that shows your plan quota, real-time costs, and
 [![Stars](https://img.shields.io/github/stars/bpinheiroms/claude-office)](https://github.com/bpinheiroms/claude-office/stargazers)
 ![Bun](https://img.shields.io/badge/runtime-bun-F9A03C)
 
-<!-- TODO: add screenshot -->
-<!-- ![Claude Office in action](preview.png) -->
+### Full preset (expanded layout)
+
+![Claude Office — full preset](preview-full.png)
+
+### Minimal preset (compact layout)
+
+![Claude Office — minimal preset](preview-minimal.png)
 
 ## Install
 
