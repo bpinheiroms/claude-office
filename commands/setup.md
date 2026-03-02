@@ -21,13 +21,13 @@ Run a quick test to verify it works:
 ```bash
 echo '{}' | bun run PLUGIN_DIR/src/statusline/index.ts
 ```
-It should produce output (possibly just a newline if no agents are active). It must not error.
+It should produce output (possibly just a newline if no data is available). It must not error.
 
 ## Step 4: Check for existing statusline
 
 Read `~/.claude/settings.json` and check if `statusLine.command` is already configured.
 
-- If **claude-hud** or another statusline is found, inform the user:
+- If another statusline is found, inform the user:
   > "You currently have `<existing command>` configured as your statusline. Shall I replace it with Claude Office?"
   Wait for confirmation before proceeding. If the user declines, stop here.
 - If no statusline is configured, proceed directly.
@@ -53,6 +53,6 @@ Tell the user:
 > You can switch back at any time by editing `~/.claude/settings.json`.
 >
 > The statusline shows:
+> - **Plan**: Max, Pro, or Team
 > - **Quota**: 5-hour and 7-day rate limit utilization bars
-> - **Costs**: Today and weekly estimated spend
-> - **Agents**: All active Claude Code agents across projects with context usage and status
+> - **Costs**: Today, week, and month estimated spend

@@ -4,29 +4,24 @@
  * Claude Code invokes this every ~300ms:
  *   echo '<stdin json>' | bun run src/statusline/index.ts
  *
- * Reads stdin, collects data from file-based caches, renders to stdout, exits.
+ * Reads stdin, collects quota + usage data, renders single line to stdout, exits.
  */
 
 import { readStdin, parseStdin } from './stdin.js';
-import { scanAgents } from './agent-scanner.js';
 import { scanUsage } from './usage-scanner.js';
 import { render } from './render.js';
 import { getQuota } from '../data/quota-api.js';
 
 async function main(): Promise<void> {
-  // 1. Read stdin (Bun.stdin native)
   const raw = await readStdin();
   const stdin = parseStdin(raw);
 
-  // 2. Collect data in parallel (each uses file-based caches)
-  const [quota, agents, usage] = await Promise.all([
+  const [quota, usage] = await Promise.all([
     getQuota(),
-    scanAgents(),
     scanUsage(),
   ]);
 
-  // 3. Render and output
-  const output = render(stdin, quota, agents, usage);
+  const output = render(stdin, quota, usage);
   if (output) {
     process.stdout.write(output + '\n');
   }
