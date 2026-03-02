@@ -1,7 +1,7 @@
 {
   "name": "claude-office",
   "description": "Multi-agent monitoring statusline for Claude Code — track agents, quotas, and costs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Bruno Silva",
     "url": "https://github.com/brunosilvadev"
@@ -9,7 +9,16 @@
   "homepage": "https://github.com/brunosilvadev/claude-office",
   "repository": "https://github.com/brunosilvadev/claude-office",
   "license": "MIT",
-  "keywords": ["statusline", "monitoring", "agents", "quota", "costs", "dashboard", "multi-agent", "claude-code"],
+  "keywords": [
+    "statusline",
+    "monitoring",
+    "agents",
+    "quota",
+    "costs",
+    "dashboard",
+    "multi-agent",
+    "claude-code"
+  ],
   "main": "src/statusline/index.ts",
   "commands": [
     {
