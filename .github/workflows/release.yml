@@ -85,7 +85,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git checkout -b "$branch"
-          bun run scripts/release.ts "$bump"
+          bun run scripts/release.ts "$bump" --no-tag
           git push origin "$branch"
 
           gh pr create \

@@ -251,8 +251,9 @@ for (const file of FILES) {
 }
 updateChangelog(next);
 
-// Git commit and tag
-console.log('\nCommitting and tagging...\n');
+// Git commit (and tag unless --no-tag)
+const skipTag = process.argv.includes('--no-tag');
+console.log(`\nCommitting${skipTag ? '' : ' and tagging'}...\n`);
 
 if (isCI) {
   execSync('git config user.name "github-actions[bot]"', { cwd: ROOT, stdio: 'inherit' });
@@ -261,7 +262,9 @@ if (isCI) {
 
 execSync('git add -A', { cwd: ROOT, stdio: 'inherit' });
 execSync(`git commit -m "release: v${next}"`, { cwd: ROOT, stdio: 'inherit' });
-execSync(`git tag v${next}`, { cwd: ROOT, stdio: 'inherit' });
+if (!skipTag) {
+  execSync(`git tag v${next}`, { cwd: ROOT, stdio: 'inherit' });
+}
 
 console.log(`\n✅ Release v${next} ready!`);
 
