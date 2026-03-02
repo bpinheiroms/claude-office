@@ -18,6 +18,8 @@
     "costs"
   ],
   "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "typecheck": "tsc -p tsconfig.json",
     "release:bump": "bun run scripts/release.ts"
   },

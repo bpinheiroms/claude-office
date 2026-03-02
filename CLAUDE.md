@@ -167,9 +167,24 @@ Use dot circles for progress bars: `●` (filled) and `○` (empty). The `dotBar
 - **Don't add thresholds that turn cost values red** — costs are always amber
 - **Don't add more presets** — only `full` and `minimal` exist
 
+## Testing
+
+- **Framework**: `bun test` (built-in, zero dependencies)
+- **Convention**: `_test` export blocks expose internal functions for unit testing
+  ```ts
+  /** @internal — exported for unit testing only */
+  export const _test = { helperA, helperB };
+  ```
+- **Location**: Tests colocated in `__tests__/` directories next to source
+- **Fixtures**: Shared factories in `__tests__/helpers/fixtures.ts` (e.g. `makeStdin()`, `makeQuota()`)
+- **Strategy**: Test content, not exact ANSI codes — use `strip()` helper to remove escape sequences, then `toContain('42%')`
+- **Mocking**: Use `spyOn` / `mock.module` for `Bun.file` and `Bun.write` in integration-level tests
+
 ## Commands
 
 ```bash
+bun test                       # Run all unit tests
+bun test --watch               # Watch mode during development
 bun run typecheck              # Type-check all modules
 echo '{}' | bun run src/statusline/index.ts   # Run statusline with empty stdin
 ```

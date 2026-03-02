@@ -302,3 +302,8 @@ export async function scanUsage(): Promise<StatusLineUsage> {
   await writeCache(result.usage, result.fileCosts);
   return result.usage;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+  getPricing, getBillingCycleStart, toDateKey, parseMessageCost,
+};

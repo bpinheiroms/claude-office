@@ -118,3 +118,9 @@ export async function loadConfig(): Promise<DisplayConfig> {
     return cachedConfig;
   }
 }
+
+/** @internal — exported for unit testing only */
+export function _resetConfigCache(): void {
+  cachedConfig = null;
+  cachedMtimeMs = 0;
+}

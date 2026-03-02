@@ -421,3 +421,9 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   await writeCache(transcriptPath, fileSize, mtimeMs, state);
   return buildResult(state);
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+  extractTarget, resolveTaskIndex, normalizeTaskStatus,
+  processLine, buildResult, emptyState,
+};

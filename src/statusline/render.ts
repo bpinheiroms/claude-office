@@ -258,3 +258,10 @@ export function render(
 
   return lines.join('\n');
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+  quotaColor, dotBar, fmtCost, truncatePath, truncate, formatElapsed,
+  buildPlanPart, buildQuotaPart, buildContextPart, buildCostParts,
+  renderToolsLine, renderAgentLines, renderTodosLine,
+};

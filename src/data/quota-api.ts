@@ -329,3 +329,6 @@ export async function getQuota(): Promise<QuotaData> {
   await writeCache(result);
   return result;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = { getPlanName, parseUtilization, parseDate };
