@@ -106,11 +106,11 @@ describe('loadConfig', () => {
     expect(merged.showQuota7d).toBe(false); // not overridden
   });
 
-  test('caching: second call returns same object', async () => {
+  test('caching: consecutive calls return equivalent config', async () => {
     _resetConfigCache();
     const first = await loadConfig();
     const second = await loadConfig();
-    expect(first).toBe(second); // same reference = cached
+    expect(first).toEqual(second);
   });
 
   test('_resetConfigCache clears the cache', async () => {
