@@ -7,6 +7,7 @@
  *   bun run release:bump minor   # 1.0.0 → 1.1.0
  *   bun run release:bump major   # 1.0.0 → 2.0.0
  *   bun run release:bump auto    # detect bump from conventional commits
+ *   bun run release:bump detect  # output next version (no side effects)
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -208,28 +209,40 @@ function detectBump(): Bump | null {
 const arg = process.argv[2];
 const isCI = !!process.env.CI || !!process.env.GITHUB_ACTIONS;
 
-let bump: Bump;
-
-if (arg === 'auto') {
-  const detected = detectBump();
-  if (!detected) {
-    console.log('No versionable commits since last tag. SKIP_RELEASE');
-    process.exit(0);
+function resolveBump(): { bump: Bump; current: string; next: string } | null {
+  let bump: Bump;
+  if (arg === 'auto' || arg === 'detect') {
+    const detected = detectBump();
+    if (!detected) return null;
+    bump = detected;
+  } else if (['major', 'minor', 'patch'].includes(arg)) {
+    bump = arg as Bump;
+  } else {
+    console.error('Usage: bun run release:bump <major|minor|patch|auto|detect>');
+    process.exit(1);
   }
-  bump = detected;
-  console.log(`Auto-detected bump: ${bump}`);
-} else if (['major', 'minor', 'patch'].includes(arg)) {
-  bump = arg as Bump;
-} else {
-  console.error('Usage: bun run release:bump <major|minor|patch|auto>');
-  process.exit(1);
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
+  const current = pkg.version;
+  const next = bumpVersion(current, bump);
+  return { bump, current, next };
 }
 
-// Read current version
-const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
-const current = pkg.version;
-const next = bumpVersion(current, bump);
+const resolved = resolveBump();
 
+if (!resolved) {
+  console.log('No versionable commits since last tag. SKIP_RELEASE');
+  process.exit(0);
+}
+
+const { bump, current, next } = resolved;
+
+// detect mode: output version and exit (no side effects)
+if (arg === 'detect') {
+  console.log(next);
+  process.exit(0);
+}
+
+console.log(`Auto-detected bump: ${bump}`);
 console.log(`\nBumping ${current} → ${next} (${bump})\n`);
 
 // Update all files
