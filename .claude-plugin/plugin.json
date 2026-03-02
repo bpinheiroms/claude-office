@@ -4,10 +4,10 @@
   "version": "1.1.0",
   "author": {
     "name": "Bruno Silva",
-    "url": "https://github.com/brunosilvadev"
+    "url": "https://github.com/bpinheiroms"
   },
-  "homepage": "https://github.com/brunosilvadev/claude-office",
-  "repository": "https://github.com/brunosilvadev/claude-office",
+  "homepage": "https://github.com/bpinheiroms/claude-office",
+  "repository": "https://github.com/bpinheiroms/claude-office",
   "license": "MIT",
   "keywords": [
     "statusline",

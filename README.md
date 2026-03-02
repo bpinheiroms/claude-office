@@ -29,8 +29,8 @@ Max  5h ██░░░░░░░░ 15%  7d ██░░░░░░░░ 21
 Requires [Bun](https://bun.sh) v1.0+.
 
 ```bash
-git clone https://github.com/brunosilvadev/claude-office.git ~/personal/claude-office
-cd ~/personal/claude-office
+git clone https://github.com/bpinheiroms/claude-office.git
+cd claude-office
 bun install
 ```
 

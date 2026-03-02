@@ -5,7 +5,7 @@ Thanks for your interest in contributing!
 ## Getting started
 
 ```bash
-git clone https://github.com/brunosilvadev/claude-office.git
+git clone https://github.com/bpinheiroms/claude-office.git
 cd claude-office
 bun install
 ```
