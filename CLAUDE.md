@@ -98,7 +98,7 @@ Every data source has its own persistent file cache at `~/.claude/plugins/claude
 
 ```
 Line 1: Plan  Today $XX  Week $XXX  Month $XXX  Monthly Saving +$XX
-Line 2: 5h ●●○○○○○○○○ XX%  7d ●●●○○○○○○○ XX%  Context ●●●●●○○○○○ XX%
+Line 2: 5h ●●○○○○○○○○ XX%  7d ●●●○○○○○○○ XX%  Current Context ●●●●●○○○○○ XX%
 Line 3: ◐ Read: .../file.ts | ✓ Edit ×10 | ✓ Bash ×3          (tools)
 Line 4: ◐ Explore [sonnet]: Searching auth module (2m 15s)     (agents)
 Line 5: ▸ Implement login flow (3/7)                           (todos)
@@ -109,7 +109,7 @@ Lines 3-5 only appear when there's activity and the corresponding config flag is
 ### Compact (preset: `minimal`)
 
 ```
-Max  5h ●●○○○○○○○○ 14%  Context ●●●●○○○○○○ 43%  Today $51  Monthly Saving +$16
+Max  5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%  Today $51  Monthly Saving +$16
 ```
 
 Everything on a single line.
@@ -145,7 +145,7 @@ Use dot circles for progress bars: `●` (filled) and `○` (empty). The `dotBar
 
 | Color constant | RGB | Usage |
 |---------------|-----|-------|
-| `C.active` | `74, 222, 128` (green) | Healthy context, positive saving, completed items |
+| `C.active` | `74, 222, 128` (green) | Positive saving, completed items |
 | `C.idle` | `250, 204, 21` (yellow) | Running/in-progress indicators |
 | `C.costBig` | `240, 180, 80` (amber) | All cost values (today, week, month) |
 | `C.sub` | `160, 140, 200` (purple) | Normal quota usage, agent type labels |

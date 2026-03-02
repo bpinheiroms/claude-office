@@ -3,7 +3,7 @@
  *
  * Layout:
  *   Expanded:  Line 1 = Plan + Today + Week + Month + Monthly Saving
- *              Line 2 = 5h quota + 7d quota + Context bar
+ *              Line 2 = 5h quota + 7d quota + Current Context bar
  *   Compact:   Line 1 = All on one line
  *   +optional: Tools line, Agent lines, Todo line
  *
@@ -35,9 +35,7 @@ const C = {
   dimmer:  c(55, 52, 45),
   bright:  c(220, 215, 205),
   model:   c(140, 120, 200),
-  cost:    c(120, 200, 180),
   costBig: c(240, 180, 80),
-  ctxOk:   c(80, 200, 140),
   ctxWarn: c(250, 180, 50),
   ctxCrit: c(240, 80, 80),
   sub:     c(160, 140, 200),
@@ -57,12 +55,6 @@ function dotBar(pct: number, color: string, width: number = 10): string {
   const filled = Math.round((safe / 100) * width);
   const empty = width - filled;
   return `${color}${'\u25CF'.repeat(filled)}${C.dimmer}${'\u25CB'.repeat(empty)}${RST}`;
-}
-
-function ctxColor(pct: number): string {
-  if (pct >= 90) return C.ctxCrit;
-  if (pct >= 70) return C.ctxWarn;
-  return C.ctxOk;
 }
 
 function fmtCost(usd: number): string {
@@ -114,7 +106,7 @@ function buildQuotaPart(label: string, pct: number | null | undefined): string |
 function buildContextPart(config: DisplayConfig, stdin: StdinData): string | null {
   if (!config.showContext || stdin.contextPercent <= 0) return null;
   const pct = stdin.contextPercent;
-  return `${C.dim}Context${S}${dotBar(pct, ctxColor(pct))}${S}${ctxColor(pct)}${pct}%${RST}`;
+  return `${C.dim}Current${S}Context${S}${dotBar(pct, quotaColor(pct))}${S}${quotaColor(pct)}${pct}%${RST}`;
 }
 
 const PLAN_PRICES: Record<string, number> = { Max: 200, Pro: 20, Team: 30 };

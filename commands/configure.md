@@ -1,6 +1,6 @@
 ---
 name: configure
-description: Configure HUD display options (layout, presets, display elements)
+description: Configure Claude Office display options (layout, presets, display elements)
 ---
 
 You are configuring the Claude Office statusline display. The config file lives at `~/.claude/plugins/claude-office/config.json`.
@@ -28,9 +28,8 @@ Ask the user:
 
 > **Pick a preset to start from:**
 >
-> 1. **Full** — all features enabled (quota bars, context, all costs, saving, tools, agents, todos)
-> 2. **Essential** — main features (quotas, context, today/week costs, tools, agents, todos)
-> 3. **Minimal** — just the basics (quota bars, today/week costs)
+> 1. **Full** — all features enabled (quota bars, current context, all costs, saving, tools, agents, todos)
+> 2. **Minimal** — just the basics (5h quota, current context, today cost, saving)
 
 ### A3. Turn off elements
 
@@ -40,7 +39,7 @@ Show the user which elements are ON based on their chosen preset, then ask:
 >
 > - 5h quota bar (`showQuota5h`)
 > - 7d quota bar (`showQuota7d`)
-> - Context bar (`showContext`)
+> - Current Context bar (`showContext`)
 > - Today cost (`showToday`)
 > - Week cost (`showWeek`)
 > - Month cost (`showMonth`)
@@ -64,7 +63,7 @@ List only the elements that are currently OFF. Allow multiple selections or "non
 Show a preview of what the statusline will look like with their config, using a text mockup like:
 
 ```
-Line 1: Max  5h ██░░░░░░░░ 15%  7d ██░░░░░░░░ 21%  Context ██░░░░░░░░ 34%
+Line 1: Max  5h ██░░░░░░░░ 15%  7d ██░░░░░░░░ 21%  Current Context ██░░░░░░░░ 34%
 Line 2: Today $3.40  Week $22  Saving +$180
 ```
 
@@ -85,7 +84,7 @@ Read the config file and display the current settings in a summary table:
 | Setting | Value |
 |---------|-------|
 | Layout | expanded/compact |
-| Preset | full/essential/minimal/custom |
+| Preset | full/minimal/custom |
 | 5h quota | on/off |
 | ... | ... |
 

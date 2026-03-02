@@ -55,7 +55,7 @@ Claude Office answers three questions you always have while using Claude Code:
 ### Compact layout (default)
 
 ```
-Max  5h ██░░░░░░░░ 14%  Context ████░░░░░░ 43%  Today $51  Monthly Saving +$16
+Max  5h ██░░░░░░░░ 14%  Current Context ████░░░░░░ 43%  Today $51  Monthly Saving +$16
 ```
 
 Everything on a single line: plan name, 5-hour quota bar, context usage, today's cost, and monthly saving.
@@ -64,7 +64,7 @@ Everything on a single line: plan name, 5-hour quota bar, context usage, today's
 
 ```
 Max  Today $51  Week $665  Month $216  Monthly Saving +$16
-5h ██░░░░░░░░ 14%  7d ███░░░░░░░ 25%  Context ████░░░░░░ 43%
+5h ██░░░░░░░░ 14%  7d ███░░░░░░░ 25%  Current Context ████░░░░░░ 43%
 ```
 
 Line 1 shows plan name and all cost breakdowns. Line 2 shows quota bars and context usage.
@@ -83,10 +83,10 @@ These appear only when there's activity to show.
 
 | Color | Meaning |
 |-------|---------|
-| Purple | Normal quota usage |
-| Yellow/Amber | Warning — quota above 75%, or cost values |
-| Red | Critical — quota above 90%, at limit, or very high cost |
-| Green | Healthy context, positive monthly saving |
+| Purple | Normal quota and context usage |
+| Yellow/Amber | Warning — quota/context above 75%, or cost values |
+| Red | Critical — quota/context above 90%, at limit |
+| Green | Positive monthly saving, completed items |
 
 ---
 
@@ -218,7 +218,7 @@ The guided flow walks you through:
 | Plan name | *(always on)* | on | Shows Max, Pro, or Team |
 | 5h quota bar | `showQuota5h` | on | 5-hour rate limit utilization |
 | 7d quota bar | `showQuota7d` | off | 7-day rate limit utilization |
-| Context bar | `showContext` | on | Context window usage percentage |
+| Current Context bar | `showContext` | on | Context window usage percentage |
 | Today cost | `showToday` | on | API-equivalent cost for today |
 | Week cost | `showWeek` | off | Cost since Friday 14:00 (billing cycle) |
 | Month cost | `showMonth` | off | Cost for the current calendar month |
