@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Multi-agent monitoring statusline for Claude Code — track agents, quotas, and costs",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "plugins": [
     {

@@ -1,6 +1,6 @@
 {
   "name": "claude-office",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Monitor all your Claude Code agents, quotas, and costs — statusline plugin and standalone dashboard",
   "type": "module",
   "main": "src/statusline/index.ts",
