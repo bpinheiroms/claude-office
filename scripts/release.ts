@@ -236,9 +236,9 @@ if (!resolved) {
 
 const { bump, current, next } = resolved;
 
-// detect mode: output version and exit (no side effects)
+// detect mode: output version and bump type, then exit (no side effects)
 if (arg === 'detect') {
-  console.log(next);
+  console.log(`${next} ${bump}`);
   process.exit(0);
 }
 
