@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-02
+
+### Added
+- **release**: auto-generate CHANGELOG from conventional commits
+
+### Fixed
+- **release**: use RELEASE_TOKEN to push directly to main
+- **release**: add --no-tag flag for PR branch, prevent tag conflict
+- **release**: use explicit bump in PR step, add GH_TOKEN
+- **release**: tag merge commit directly, open PR for version bump
+- **release**: always show script output before failing, push v1.0.0 tag
+- **release**: restrict patch bumps to fix/perf/refactor/ci/chore only
+- **release**: read full commit body for BREAKING CHANGE footer detection
+- **release**: remove || true, validate tag points to HEAD
+- **ci**: validate statusline output, add performance and graceful degradation tests
+
+### Changed
+- remove claude code action workflow
+- fully automated release on merge to main
+
 ## [1.0.0] - 2025-03-01
 
 ### Added

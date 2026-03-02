@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Multi-agent monitoring statusline for Claude Code — track agents, quotas, and costs",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
@@ -14,7 +14,15 @@
       "source": "./",
       "description": "Monitor all your Claude Code agents, quotas, and costs from the statusline. See agent activity, context usage, rate limits, and estimated spend at a glance.",
       "category": "monitoring",
-      "tags": ["statusline", "monitoring", "agents", "quota", "costs", "dashboard", "multi-agent"]
+      "tags": [
+        "statusline",
+        "monitoring",
+        "agents",
+        "quota",
+        "costs",
+        "dashboard",
+        "multi-agent"
+      ]
     }
   ]
 }
