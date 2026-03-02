@@ -13,14 +13,17 @@ bun install
 ## Development
 
 ```bash
-# Run standalone dashboard
-bun run start
-
-# Test statusline
-echo '{}' | bun run src/statusline/index.ts
-
 # Type-check
 bun run typecheck
+
+# Test statusline (empty stdin)
+echo '{}' | bun run src/statusline/index.ts
+
+# Test with simulated context data
+echo '{"context_window":{"used_percentage":45,"context_window_size":200000}}' | bun run src/statusline/index.ts
+
+# Benchmark (must be <300ms)
+time (echo '{}' | bun run src/statusline/index.ts > /dev/null)
 ```
 
 ## Making changes
@@ -29,8 +32,7 @@ bun run typecheck
 2. Make your changes in `src/`
 3. Verify: `bun run typecheck` passes
 4. Verify: `echo '{}' | bun run src/statusline/index.ts` produces output
-5. Verify: `bun run start` still works (standalone dashboard)
-6. Open a pull request
+5. Open a pull request
 
 ## Statusline performance
 

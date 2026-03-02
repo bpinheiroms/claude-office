@@ -122,7 +122,7 @@ function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string
   });
 }
 
-async function getAccessToken(): Promise<{ token: string; planName: string | null } | null> {
+async function getAccessToken(): Promise<{ token: string; planName: string | null; refreshToken?: string } | null> {
   const keychain = readKeychainRaw();
   const file = await readFileCredentials();
   const source = keychain || file;
@@ -130,11 +130,66 @@ async function getAccessToken(): Promise<{ token: string; planName: string | nul
 
   const subscriptionType = keychain?.subscriptionType || file?.subscriptionType;
   const planName = getPlanName(subscriptionType);
+  const refreshToken = keychain?.refreshToken || file?.refreshToken;
 
-  // Always use the keychain token directly.
-  // Token refresh is handled by the SessionStart hook (refresh-token.sh)
-  // to avoid racing with Claude Code's internal token rotation.
-  return { token: source.accessToken, planName };
+  return { token: source.accessToken, planName, refreshToken };
+}
+
+/** Try to refresh an expired token and update the keychain */
+async function tryRefreshAndRetry(
+  refreshToken: string,
+  planName: string | null,
+): Promise<QuotaData | null> {
+  const refreshed = await refreshAccessToken(refreshToken);
+  if (!refreshed) return null;
+
+  // Update keychain with new token
+  try {
+    const raw = execFileSync(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
+    ).trim();
+    if (raw) {
+      const creds = JSON.parse(raw);
+      if (creds.claudeAiOauth) {
+        creds.claudeAiOauth.accessToken = refreshed.accessToken;
+        creds.claudeAiOauth.expiresAt = Date.now() + refreshed.expiresIn * 1000;
+
+        // Find account name
+        let account = 'claude';
+        try {
+          const info = execFileSync(
+            '/usr/bin/security',
+            ['find-generic-password', '-s', 'Claude Code-credentials'],
+            { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
+          );
+          const match = info.match(/"acct"<blob>="([^"]+)"/);
+          if (match) account = match[1];
+        } catch { /* use default */ }
+
+        execFileSync('/usr/bin/security', [
+          'delete-generic-password', '-s', 'Claude Code-credentials',
+        ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS });
+        execFileSync('/usr/bin/security', [
+          'add-generic-password', '-s', 'Claude Code-credentials',
+          '-a', account, '-w', JSON.stringify(creds),
+        ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS });
+      }
+    }
+  } catch { /* non-fatal: token still works for this request */ }
+
+  // Retry API call with fresh token
+  const apiResult = await fetchUsageApi(refreshed.accessToken);
+  if (apiResult.error) return null;
+
+  return {
+    fiveHour: parseUtilization(apiResult.data?.five_hour?.utilization),
+    sevenDay: parseUtilization(apiResult.data?.seven_day?.utilization),
+    fiveHourResetAt: parseDate(apiResult.data?.five_hour?.resets_at),
+    sevenDayResetAt: parseDate(apiResult.data?.seven_day?.resets_at),
+    planName,
+  };
 }
 
 // --- Cache ---
@@ -248,6 +303,15 @@ export async function getQuota(): Promise<QuotaData> {
   const apiResult = await fetchUsageApi(creds.token);
 
   if (apiResult.error) {
+    // On 401, try inline token refresh as fallback
+    if (apiResult.error === 'http-401' && creds.refreshToken) {
+      const refreshed = await tryRefreshAndRetry(creds.refreshToken, creds.planName);
+      if (refreshed) {
+        await writeCache(refreshed);
+        return refreshed;
+      }
+    }
+
     const result: QuotaData = {
       fiveHour: null, sevenDay: null,
       fiveHourResetAt: null, sevenDayResetAt: null,
