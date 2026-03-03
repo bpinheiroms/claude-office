@@ -94,13 +94,28 @@ interface CommitEntry {
 /** Match the conventional commit footer "BREAKING CHANGE:" or "BREAKING-CHANGE:" */
 const BREAKING_FOOTER_RE = /^BREAKING[ -]CHANGE\s*:/m;
 
-function getCommitsSinceLastTag(): CommitEntry[] {
-  let lastTag = '';
+function getLastTagVersion(): string | null {
   try {
-    lastTag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf-8' }).trim();
+    const tag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf-8' }).trim();
+    return tag.replace(/^v/, '');
   } catch {
-    // No tags yet
+    return null;
   }
+}
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+function getCommitsSinceLastTag(): CommitEntry[] {
+  const lastTagVer = getLastTagVersion();
+  const lastTag = lastTagVer ? `v${lastTagVer}` : '';
 
   const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
   try {
@@ -223,6 +238,17 @@ function resolveBump(): { bump: Bump; current: string; next: string } | null {
   }
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8'));
   const current = pkg.version;
+
+  // If package.json version already exceeds the last tag, use it as-is.
+  // This prevents double-bumping when the version was set manually in a feature branch.
+  if (arg === 'auto' || arg === 'detect') {
+    const lastTagVer = getLastTagVersion();
+    if (lastTagVer && compareVersions(current, lastTagVer) > 0) {
+      console.log(`package.json (${current}) already ahead of last tag (v${lastTagVer}), using as-is`);
+      return { bump, current: lastTagVer, next: current };
+    }
+  }
+
   const next = bumpVersion(current, bump);
   return { bump, current, next };
 }
