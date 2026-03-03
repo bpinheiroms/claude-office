@@ -1,6 +1,6 @@
 {
   "name": "claude-office",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Claude Code statusline plugin — track plan quota, costs, and usage at a glance",
   "type": "module",
   "main": "src/statusline/index.ts",
