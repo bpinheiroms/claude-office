@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-03-03
+
+### Fixed
+- remove commands field, rely on auto-discovery
+- correct plugin.json manifest to match Claude Code schema
+
+### Documentation
+- remove stars badge (shields.io returns invalid for new repos)
+- fix star history chart URL params
+- add star history chart
+- add acknowledgment for claude-hud inspiration
+
 ## [2.1.0] - 2026-03-03
 
 ### Added
