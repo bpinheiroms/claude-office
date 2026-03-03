@@ -39,7 +39,8 @@ Update `~/.claude/settings.json` to set the statusline command. Read the file fi
 ```json
 {
   "statusLine": {
-    "command": ["bun", "run", "PLUGIN_DIR/src/statusline/index.ts"]
+    "type": "command",
+    "command": "bun run PLUGIN_DIR/src/statusline/index.ts"
   }
 }
 ```
