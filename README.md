@@ -15,26 +15,29 @@ A Claude Code statusline plugin that shows your plan quota, real-time costs, and
 
 ## Install
 
-Inside a Claude Code session, run:
+Inside a Claude Code session, run the following commands:
 
-**Step 1: Clone and install**
-```bash
-git clone https://github.com/bpinheiroms/claude-office.git
-cd claude-office
-bun install
+**Step 1: Add the marketplace**
+```text
+/plugin marketplace add bpinheiroms/claude-office
 ```
 
-**Step 2: Set up the statusline**
+**Step 2: Install the plugin**
+```text
+/plugin install claude-office
+```
+
+**Step 3: Set up the statusline**
 ```text
 /claude-office:setup
 ```
 
-**Step 3: Customize (optional)**
+**Step 4: Customize (optional)**
 ```text
 /claude-office:configure
 ```
 
-Done! The statusline appears immediately at the bottom of your Claude Code terminal.
+Done! The statusline appears immediately — no restart needed.
 
 ---
 
@@ -355,6 +358,8 @@ commands/
 
 ## Development
 
+If you want to contribute or run from source:
+
 ```bash
 git clone https://github.com/bpinheiroms/claude-office.git
 cd claude-office
@@ -364,6 +369,9 @@ bun install
 ### Commands
 
 ```bash
+# Run tests
+bun test
+
 # Type-check
 bun run typecheck
 
