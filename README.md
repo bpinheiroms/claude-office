@@ -407,6 +407,12 @@ Inspired by [claude-hud](https://github.com/jarrodwatts/claude-hud) by Jarrod Wa
 
 ---
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=bpinheiroms/claude-office&type=Date)](https://star-history.com/#bpinheiroms/claude-office&Date)
+
+---
+
 ## License
 
 [MIT](LICENSE)
