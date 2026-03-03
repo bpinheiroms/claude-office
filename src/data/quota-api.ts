@@ -10,7 +10,7 @@
 import type { QuotaData } from './types.js';
 import { homedir } from 'os';
 import { join } from 'path';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { mkdirSync, existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import https from 'https';
 
@@ -66,7 +66,7 @@ function readKeychainRaw(): OAuthData | null {
 
 async function readFileCredentials(): Promise<OAuthData | null> {
   try {
-    const content = await readFile(CREDENTIALS_PATH, 'utf-8');
+    const content = await Bun.file(CREDENTIALS_PATH).text();
     return JSON.parse(content)?.claudeAiOauth ?? null;
   } catch {
     return null;
@@ -207,7 +207,7 @@ function parseCacheFile(content: string): QuotaData {
 
 async function readCache(): Promise<QuotaData | null> {
   try {
-    const content = await readFile(CACHE_PATH, 'utf-8');
+    const content = await Bun.file(CACHE_PATH).text();
     const data = parseCacheFile(content);
     const ttl = data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
     if (Date.now() - (data._timestamp ?? 0) >= ttl) return null;
@@ -220,7 +220,7 @@ async function readCache(): Promise<QuotaData | null> {
 /** Read cache ignoring TTL — returns last known good data (with fiveHour set) or null */
 async function readStaleCache(): Promise<QuotaData | null> {
   try {
-    const content = await readFile(CACHE_PATH, 'utf-8');
+    const content = await Bun.file(CACHE_PATH).text();
     const data = parseCacheFile(content);
     if (data.fiveHour != null) return data;
     return null;
@@ -231,7 +231,7 @@ async function readStaleCache(): Promise<QuotaData | null> {
 
 async function writeCache(data: QuotaData): Promise<void> {
   try {
-    await mkdir(CACHE_DIR, { recursive: true });
+    if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
     const cacheData: CacheFile = {
       data: {
         fiveHour: data.fiveHour,
@@ -244,7 +244,7 @@ async function writeCache(data: QuotaData): Promise<void> {
       },
       timestamp: Date.now(),
     };
-    await writeFile(CACHE_PATH, JSON.stringify(cacheData));
+    await Bun.write(CACHE_PATH, JSON.stringify(cacheData));
   } catch { /* skip */ }
 }
 
@@ -349,9 +349,13 @@ export async function getQuota(): Promise<QuotaData> {
       }
     }
 
-    // On server errors (5xx, timeout, network), serve stale cached data if available
-    // so the quota bar doesn't disappear during transient API outages.
-    if (apiResult.error !== 'http-401') {
+    // On transient failures (5xx, timeout, network), serve stale cached data if available
+    // so the quota bar doesn't disappear during API outages. Don't serve stale for
+    // client errors (4xx) or parse failures which indicate a real problem.
+    const isTransient = apiResult.error === 'timeout'
+      || apiResult.error === 'network'
+      || apiResult.error.startsWith('http-5');
+    if (isTransient) {
       const stale = await readStaleCache();
       if (stale) return stale;
     }

@@ -223,7 +223,7 @@ The guided flow walks you through:
 
 | Option | Config key | Default (minimal) | Description |
 |--------|------------|-------------------|-------------|
-| Layout | `lineLayout` | `compact` | `expanded` (2 lines) or `compact` (1 line) |
+| Layout | `lineLayout` | `compact` | `expanded` (all data) or `compact` (condensed, 2 lines) |
 | Plan name | *(always on)* | on | Shows Max, Pro, or Team |
 | 5h quota bar | `showQuota5h` | on | 5-hour rate limit utilization |
 | 7d quota bar | `showQuota7d` | off | 7-day rate limit utilization |
