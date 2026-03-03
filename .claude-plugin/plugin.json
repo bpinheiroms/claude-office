@@ -14,9 +14,5 @@
     "quota",
     "costs",
     "claude-code"
-  ],
-  "commands": [
-    "commands/setup.md",
-    "commands/configure.md"
   ]
 }
