@@ -401,6 +401,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style, and PR guidelines.
 
 ---
 
+## Acknowledgments
+
+Inspired by [claude-hud](https://github.com/jarrodwatts/claude-hud) by Jarrod Watts.
+
+---
+
 ## License
 
 [MIT](LICENSE)
