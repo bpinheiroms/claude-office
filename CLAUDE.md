@@ -97,8 +97,8 @@ Every data source has its own persistent file cache at `~/.claude/plugins/claude
 ### Expanded (preset: `full`)
 
 ```text
-Line 1: Plan Max  Today $XX  Week $XXX  Month $XXX  Monthly Saving +$XX
-Line 2: 5h ●●○○○○○○○○ XX%  7d ●●●○○○○○○○ XX%  Current Context ●●●●●○○○○○ XX%
+Line 1: Plan Max | Today $XX | Week $XXX | Month $XXX | Monthly Saving +$XX
+Line 2: 5h ━━━━━━━━━━ XX% | 7d ━━━━━━━━━━ XX% | Context ━━━━━━━━━━ XX%
 Line 3: ◐ Read: .../file.ts | ✓ Edit ×10 | ✓ Bash ×3          (tools)
 Line 4: ◐ Explore [sonnet]: Searching auth module (2m 15s)     (agents)
 Line 5: ▸ Implement login flow (3/7)                           (todos)
@@ -109,8 +109,8 @@ Lines 3-5 only appear when there's activity and the corresponding config flag is
 ### Compact (preset: `minimal`)
 
 ```text
-Plan Max  Today $51  Monthly Saving +$16
-5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%
+Plan Max | Today $51 | Monthly Saving +$16
+5h ━━━━━━━━━━ 14% | Context ━━━━━━━━━━ 43%
 ```
 
 Same two-line structure as expanded, with fewer elements enabled.
@@ -140,7 +140,7 @@ These are called from the main `render()` function and pushed to `lines[]`. Retu
 
 ### Progress indicators
 
-Use dot circles for progress bars: `●` (filled) and `○` (empty). The `dotBar(pct, color, width)` function handles this. Width defaults to 10 dots.
+Use horizontal bar characters for progress bars: `━` (U+2501) with color for filled and dimmer color for empty. The `dotBar(pct, color, width)` function handles this. Width defaults to 10 characters.
 
 ### Color semantics
 
