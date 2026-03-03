@@ -11,7 +11,7 @@ Run `bun --version` to confirm Bun is available. This plugin requires Bun.
 
 ## Step 2: Find the plugin directory
 
-The plugin directory is the directory containing this `commands/setup.md` file — one level up from `commands/`.
+The plugin directory is the directory containing this `skills/setup/SKILL.md` file — two levels up from `skills/setup/`.
 Verify by checking that `package.json` exists in that directory.
 Store this absolute path as `PLUGIN_DIR`.
 
@@ -39,7 +39,8 @@ Update `~/.claude/settings.json` to set the statusline command. Read the file fi
 ```json
 {
   "statusLine": {
-    "command": ["bun", "run", "PLUGIN_DIR/src/statusline/index.ts"]
+    "type": "command",
+    "command": "bun run PLUGIN_DIR/src/statusline/index.ts"
   }
 }
 ```
