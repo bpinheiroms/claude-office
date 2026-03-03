@@ -106,7 +106,7 @@ function buildQuotaPart(label: string, pct: number | null | undefined): string |
 function buildContextPart(config: DisplayConfig, stdin: StdinData): string | null {
   if (!config.showContext || stdin.contextPercent <= 0) return null;
   const pct = stdin.contextPercent;
-  return `${C.dim}Current${S}Context${S}${dotBar(pct, quotaColor(pct))}${S}${quotaColor(pct)}${pct}%${RST}`;
+  return `${C.dim}Context${S}${dotBar(pct, quotaColor(pct))}${S}${quotaColor(pct)}${pct}%${RST}`;
 }
 
 const PLAN_PRICES: Record<string, number> = { Max: 200, Pro: 20, Team: 30 };
@@ -226,9 +226,9 @@ export function render(
   // Line 1: Plan + Costs (pipe-separated)
   const costLine = [plan, ...costs].filter(Boolean) as string[];
   if (costLine.length > 0) lines.push(costLine.join(pipe));
-  // Line 2: Quotas + Context (space-separated)
+  // Line 2: Quotas + Context (pipe-separated)
   const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
-  if (quotaLine.length > 0) lines.push(quotaLine.join(join));
+  if (quotaLine.length > 0) lines.push(quotaLine.join(pipe));
 
   // Transcript activity
   if (transcript) {

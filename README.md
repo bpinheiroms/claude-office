@@ -64,7 +64,7 @@ Claude Office answers three questions you always have while using Claude Code:
 
 ```text
 Plan Max | Today $51 | Monthly Saving +$16
-5h ━━━━━━━━━━ 14%  Current Context ━━━━━━━━━━ 43%
+5h ━━━━━━━━━━ 14% | Context ━━━━━━━━━━ 43%
 ```
 
 Line 1 shows plan name and cost info (pipe-separated). Line 2 shows quota bars and context usage. Stays readable on narrow terminals.
@@ -72,8 +72,8 @@ Line 1 shows plan name and cost info (pipe-separated). Line 2 shows quota bars a
 ### Expanded layout
 
 ```text
-Plan Max | Today $51 | Week $665 | Month $216 | Monthly Saving +$16
-5h ━━━━━━━━━━ 14%  7d ━━━━━━━━━━ 25%  Current Context ━━━━━━━━━━ 43%
+Plan Max | Today $215 | Week $830 | Month $380 | Monthly Saving +$180
+5h ━━━━━━━━━━ 4% | 7d ━━━━━━━━━━ 30% | Context ━━━━━━━━━━ 33%
 ```
 
 Same two-line structure with all cost breakdowns and both quota bars enabled.
@@ -227,7 +227,7 @@ The guided flow walks you through:
 | Plan name | *(always on)* | on | Shows Max, Pro, or Team |
 | 5h quota bar | `showQuota5h` | on | 5-hour rate limit utilization |
 | 7d quota bar | `showQuota7d` | off | 7-day rate limit utilization |
-| Current Context bar | `showContext` | on | Context window usage percentage |
+| Context bar | `showContext` | on | Context window usage percentage |
 | Today cost | `showToday` | on | API-equivalent cost for today |
 | Week cost | `showWeek` | off | Cost since Friday 14:00 (billing cycle) |
 | Month cost | `showMonth` | off | Cost for the current calendar month |

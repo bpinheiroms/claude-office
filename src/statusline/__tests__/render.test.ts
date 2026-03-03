@@ -260,9 +260,8 @@ describe('buildContextPart', () => {
     expect(buildContextPart(makeConfig(), makeStdin({ contextPercent: 0 }))).toBeNull();
   });
 
-  test('shows Current Context bar', () => {
+  test('shows Context bar', () => {
     const result = strip(buildContextPart(makeConfig(), makeStdin({ contextPercent: 42 }))!);
-    expect(result).toContain('Current');
     expect(result).toContain('Context');
     expect(result).toContain('42%');
   });
