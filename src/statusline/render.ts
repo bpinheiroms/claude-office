@@ -54,7 +54,7 @@ function dotBar(pct: number, color: string, width: number = 10): string {
   const safe = Math.max(0, Math.min(100, pct));
   const filled = Math.round((safe / 100) * width);
   const empty = width - filled;
-  return `${color}${'\u25CF'.repeat(filled)}${C.dimmer}${'\u25CB'.repeat(empty)}${RST}`;
+  return `${color}${'\u2501'.repeat(filled)}${C.dimmer}${'\u2501'.repeat(empty)}${RST}`;
 }
 
 function fmtCost(usd: number): string {
@@ -214,6 +214,7 @@ export function render(
 ): string {
   const lines: string[] = [];
   const join = `${S}${S}`;
+  const pipe = `${S}${C.dimmer}|${RST}${S}`;
 
   // Quota & context parts
   const plan = buildPlanPart(config, quota);
@@ -222,20 +223,12 @@ export function render(
   const ctx = buildContextPart(config, stdin);
   const costs = buildCostParts(config, usage, quota);
 
-  if (config.lineLayout === 'expanded') {
-    // Line 1: Plan + Costs
-    const costLine = [plan, ...costs].filter(Boolean) as string[];
-    if (costLine.length > 0) lines.push(costLine.join(join));
-    // Line 2: Quotas + Context
-    const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
-    if (quotaLine.length > 0) lines.push(quotaLine.join(join));
-  } else {
-    // Compact: same two-line split to avoid wrapping on narrow terminals
-    const costLine = [plan, ...costs].filter(Boolean) as string[];
-    if (costLine.length > 0) lines.push(costLine.join(join));
-    const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
-    if (quotaLine.length > 0) lines.push(quotaLine.join(join));
-  }
+  // Line 1: Plan + Costs (pipe-separated)
+  const costLine = [plan, ...costs].filter(Boolean) as string[];
+  if (costLine.length > 0) lines.push(costLine.join(pipe));
+  // Line 2: Quotas + Context (space-separated)
+  const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
+  if (quotaLine.length > 0) lines.push(quotaLine.join(join));
 
   // Transcript activity
   if (transcript) {

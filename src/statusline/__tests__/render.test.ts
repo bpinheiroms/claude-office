@@ -43,39 +43,39 @@ describe('quotaColor', () => {
 // --- dotBar ---
 
 describe('dotBar', () => {
-  test('0% = all empty dots', () => {
+  test('0% = all empty', () => {
     const bar = strip(dotBar(0, ''));
-    expect(bar).toBe('○'.repeat(10));
+    expect(bar).toBe('━'.repeat(10));
   });
 
-  test('100% = all filled dots', () => {
+  test('100% = all filled', () => {
     const bar = strip(dotBar(100, ''));
-    expect(bar).toBe('●'.repeat(10));
+    expect(bar).toBe('━'.repeat(10));
   });
 
   test('50% = 5 filled + 5 empty', () => {
     const bar = strip(dotBar(50, ''));
-    expect(bar).toBe('●'.repeat(5) + '○'.repeat(5));
+    expect(bar).toBe('━'.repeat(5) + '━'.repeat(5));
   });
 
   test('clamps below 0', () => {
     const bar = strip(dotBar(-10, ''));
-    expect(bar).toBe('○'.repeat(10));
+    expect(bar).toBe('━'.repeat(10));
   });
 
   test('clamps above 100', () => {
     const bar = strip(dotBar(150, ''));
-    expect(bar).toBe('●'.repeat(10));
+    expect(bar).toBe('━'.repeat(10));
   });
 
   test('custom width = 5', () => {
     const bar = strip(dotBar(40, '', 5));
-    expect(bar).toBe('●●○○○');
+    expect(bar).toBe('━━━━━');
   });
 
   test('rounding: 15% of 10 → 2 filled', () => {
     const bar = strip(dotBar(15, ''));
-    expect(bar).toBe('●●○○○○○○○○');
+    expect(bar).toBe('━━━━━━━━━━');
   });
 });
 

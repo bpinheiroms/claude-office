@@ -63,17 +63,17 @@ Claude Office answers three questions you always have while using Claude Code:
 ### Compact layout (default)
 
 ```text
-Plan Max  Today $51  Monthly Saving +$16
-5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%
+Plan Max | Today $51 | Monthly Saving +$16
+5h ━━━━━━━━━━ 14%  Current Context ━━━━━━━━━━ 43%
 ```
 
-Line 1 shows plan name and cost info. Line 2 shows quota bars and context usage. Stays readable on narrow terminals.
+Line 1 shows plan name and cost info (pipe-separated). Line 2 shows quota bars and context usage. Stays readable on narrow terminals.
 
 ### Expanded layout
 
 ```text
-Plan Max  Today $51  Week $665  Month $216  Monthly Saving +$16
-5h ●●○○○○○○○○ 14%  7d ●●●○○○○○○○ 25%  Current Context ●●●●○○○○○○ 43%
+Plan Max | Today $51 | Week $665 | Month $216 | Monthly Saving +$16
+5h ━━━━━━━━━━ 14%  7d ━━━━━━━━━━ 25%  Current Context ━━━━━━━━━━ 43%
 ```
 
 Same two-line structure with all cost breakdowns and both quota bars enabled.
