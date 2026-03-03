@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-03-03
+
+### Added
+- redesign progress bars and cost separators
+
+### Fixed
+- update CLAUDE.md layout examples to match current renderer
+- update preview screenshots with new layout
+- restore preview screenshots
+- use pipe separators on quota line and shorten Context label
+
 ## [2.0.2] - 2026-03-03
 
 ### Fixed

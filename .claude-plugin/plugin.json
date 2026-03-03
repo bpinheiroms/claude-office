@@ -1,7 +1,7 @@
 {
   "name": "claude-office",
   "description": "Claude Code statusline plugin — track plan quota, costs, and usage at a glance",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "author": {
     "name": "Bruno Silva",
     "url": "https://github.com/bpinheiroms"
