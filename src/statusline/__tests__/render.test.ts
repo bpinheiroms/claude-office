@@ -216,7 +216,7 @@ describe('buildPlanPart', () => {
 
   test('returns plan name when available', () => {
     const result = strip(buildPlanPart(makeConfig(), makeQuota({ planName: 'Max' }))!);
-    expect(result).toBe('Max');
+    expect(result).toBe('Plan\u00A0Max');
   });
 });
 
@@ -522,7 +522,7 @@ describe('render()', () => {
     expect(lines.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('compact layout produces single line', () => {
+  test('compact layout produces two lines', () => {
     const output = render(
       makeStdin(),
       makeQuota(),
@@ -530,7 +530,7 @@ describe('render()', () => {
       makeMinimalConfig(),
     );
     const lines = output.split('\n');
-    expect(lines).toHaveLength(1);
+    expect(lines).toHaveLength(2);
   });
 
   test('fallback to model name when nothing else available', () => {

@@ -94,7 +94,7 @@ function buildPlanPart(config: DisplayConfig, quota: QuotaData | null): string |
   if (!config.showPlan) return null;
   const name = quota?.planName || '';
   if (!name) return null;
-  return `${BOLD}${C.model}${name}${RST}`;
+  return `${BOLD}${C.model}Plan${S}${name}${RST}`;
 }
 
 function buildQuotaPart(label: string, pct: number | null | undefined): string | null {
@@ -230,8 +230,11 @@ export function render(
     const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
     if (quotaLine.length > 0) lines.push(quotaLine.join(join));
   } else {
-    const all = [plan, q5h, q7d, ctx, ...costs].filter(Boolean) as string[];
-    if (all.length > 0) lines.push(all.join(join));
+    // Compact: same two-line split to avoid wrapping on narrow terminals
+    const costLine = [plan, ...costs].filter(Boolean) as string[];
+    if (costLine.length > 0) lines.push(costLine.join(join));
+    const quotaLine = [q5h, q7d, ctx].filter(Boolean) as string[];
+    if (quotaLine.length > 0) lines.push(quotaLine.join(join));
   }
 
   // Transcript activity

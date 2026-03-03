@@ -10,7 +10,7 @@
 import type { QuotaData } from './types.js';
 import { homedir } from 'os';
 import { join } from 'path';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { mkdirSync, existsSync } from 'fs';
 import { execFileSync } from 'child_process';
 import https from 'https';
 
@@ -66,7 +66,7 @@ function readKeychainRaw(): OAuthData | null {
 
 async function readFileCredentials(): Promise<OAuthData | null> {
   try {
-    const content = await readFile(CREDENTIALS_PATH, 'utf-8');
+    const content = await Bun.file(CREDENTIALS_PATH).text();
     return JSON.parse(content)?.claudeAiOauth ?? null;
   } catch {
     return null;
@@ -191,21 +191,39 @@ async function tryRefreshAndRetry(
 
 // --- Cache ---
 
+function parseCacheFile(content: string): QuotaData {
+  const cache: CacheFile = JSON.parse(content);
+  return {
+    fiveHour: cache.data.fiveHour,
+    sevenDay: cache.data.sevenDay,
+    fiveHourResetAt: cache.data.fiveHourResetAt ? new Date(cache.data.fiveHourResetAt) : null,
+    sevenDayResetAt: cache.data.sevenDayResetAt ? new Date(cache.data.sevenDayResetAt) : null,
+    planName: cache.data.planName,
+    apiUnavailable: cache.data.apiUnavailable,
+    apiError: cache.data.apiError,
+    _timestamp: cache.timestamp,
+  };
+}
+
 async function readCache(): Promise<QuotaData | null> {
   try {
-    const content = await readFile(CACHE_PATH, 'utf-8');
-    const cache: CacheFile = JSON.parse(content);
-    const ttl = cache.data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
-    if (Date.now() - cache.timestamp >= ttl) return null;
-    return {
-      fiveHour: cache.data.fiveHour,
-      sevenDay: cache.data.sevenDay,
-      fiveHourResetAt: cache.data.fiveHourResetAt ? new Date(cache.data.fiveHourResetAt) : null,
-      sevenDayResetAt: cache.data.sevenDayResetAt ? new Date(cache.data.sevenDayResetAt) : null,
-      planName: cache.data.planName,
-      apiUnavailable: cache.data.apiUnavailable,
-      apiError: cache.data.apiError,
-    };
+    const content = await Bun.file(CACHE_PATH).text();
+    const data = parseCacheFile(content);
+    const ttl = data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
+    if (Date.now() - (data._timestamp ?? 0) >= ttl) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/** Read cache ignoring TTL — returns last known good data (with fiveHour set) or null */
+async function readStaleCache(): Promise<QuotaData | null> {
+  try {
+    const content = await Bun.file(CACHE_PATH).text();
+    const data = parseCacheFile(content);
+    if (data.fiveHour != null) return data;
+    return null;
   } catch {
     return null;
   }
@@ -213,7 +231,7 @@ async function readCache(): Promise<QuotaData | null> {
 
 async function writeCache(data: QuotaData): Promise<void> {
   try {
-    await mkdir(CACHE_DIR, { recursive: true });
+    if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
     const cacheData: CacheFile = {
       data: {
         fiveHour: data.fiveHour,
@@ -226,7 +244,7 @@ async function writeCache(data: QuotaData): Promise<void> {
       },
       timestamp: Date.now(),
     };
-    await writeFile(CACHE_PATH, JSON.stringify(cacheData));
+    await Bun.write(CACHE_PATH, JSON.stringify(cacheData));
   } catch { /* skip */ }
 }
 
@@ -300,13 +318,46 @@ export async function getQuota(): Promise<QuotaData> {
   const apiResult = await fetchUsageApi(creds.token);
 
   if (apiResult.error) {
-    // On 401, try inline token refresh as fallback
-    if (apiResult.error === 'http-401' && creds.refreshToken) {
-      const refreshed = await tryRefreshAndRetry(creds.refreshToken, creds.planName);
-      if (refreshed) {
-        await writeCache(refreshed);
-        return refreshed;
+    if (apiResult.error === 'http-401') {
+      // Re-read keychain — Claude Code may have refreshed the token since our first read.
+      // This handles the common case where our cached/initial read was stale but CC already
+      // updated the keychain in the background (race condition with concurrent sessions).
+      const freshCreds = await getAccessToken();
+      if (freshCreds && freshCreds.token !== creds.token) {
+        const retryResult = await fetchUsageApi(freshCreds.token);
+        if (!retryResult.error) {
+          const result: QuotaData = {
+            fiveHour: parseUtilization(retryResult.data?.five_hour?.utilization),
+            sevenDay: parseUtilization(retryResult.data?.seven_day?.utilization),
+            fiveHourResetAt: parseDate(retryResult.data?.five_hour?.resets_at),
+            sevenDayResetAt: parseDate(retryResult.data?.seven_day?.resets_at),
+            planName: freshCreds.planName ?? creds.planName,
+          };
+          await writeCache(result);
+          return result;
+        }
       }
+
+      // Last resort: try OAuth refresh flow
+      const refreshToken = freshCreds?.refreshToken ?? creds.refreshToken;
+      if (refreshToken) {
+        const refreshed = await tryRefreshAndRetry(refreshToken, creds.planName);
+        if (refreshed) {
+          await writeCache(refreshed);
+          return refreshed;
+        }
+      }
+    }
+
+    // On transient failures (5xx, timeout, network), serve stale cached data if available
+    // so the quota bar doesn't disappear during API outages. Don't serve stale for
+    // client errors (4xx) or parse failures which indicate a real problem.
+    const isTransient = apiResult.error === 'timeout'
+      || apiResult.error === 'network'
+      || apiResult.error.startsWith('http-5');
+    if (isTransient) {
+      const stale = await readStaleCache();
+      if (stale) return stale;
     }
 
     const result: QuotaData = {
