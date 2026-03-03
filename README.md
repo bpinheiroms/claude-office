@@ -2,7 +2,8 @@
 
 A Claude Code statusline plugin that shows your plan quota, real-time costs, and how much you're saving compared to using the API directly.
 
-![License](https://img.shields.io/badge/license-MIT-blue)
+[![License](https://img.shields.io/github/license/bpinheiroms/claude-office)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/bpinheiroms/claude-office)](https://github.com/bpinheiroms/claude-office/stargazers)
 ![Bun](https://img.shields.io/badge/runtime-bun-F9A03C)
 
 ## Full preset (expanded layout)
