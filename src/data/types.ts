@@ -6,4 +6,6 @@ export interface QuotaData {
   planName: string | null;       // 'Max', 'Pro', 'Team', null
   apiUnavailable?: boolean;
   apiError?: string;
+  /** @internal cache timestamp for TTL checks */
+  _timestamp?: number;
 }

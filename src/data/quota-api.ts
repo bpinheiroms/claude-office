@@ -191,21 +191,39 @@ async function tryRefreshAndRetry(
 
 // --- Cache ---
 
+function parseCacheFile(content: string): QuotaData {
+  const cache: CacheFile = JSON.parse(content);
+  return {
+    fiveHour: cache.data.fiveHour,
+    sevenDay: cache.data.sevenDay,
+    fiveHourResetAt: cache.data.fiveHourResetAt ? new Date(cache.data.fiveHourResetAt) : null,
+    sevenDayResetAt: cache.data.sevenDayResetAt ? new Date(cache.data.sevenDayResetAt) : null,
+    planName: cache.data.planName,
+    apiUnavailable: cache.data.apiUnavailable,
+    apiError: cache.data.apiError,
+    _timestamp: cache.timestamp,
+  };
+}
+
 async function readCache(): Promise<QuotaData | null> {
   try {
     const content = await readFile(CACHE_PATH, 'utf-8');
-    const cache: CacheFile = JSON.parse(content);
-    const ttl = cache.data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
-    if (Date.now() - cache.timestamp >= ttl) return null;
-    return {
-      fiveHour: cache.data.fiveHour,
-      sevenDay: cache.data.sevenDay,
-      fiveHourResetAt: cache.data.fiveHourResetAt ? new Date(cache.data.fiveHourResetAt) : null,
-      sevenDayResetAt: cache.data.sevenDayResetAt ? new Date(cache.data.sevenDayResetAt) : null,
-      planName: cache.data.planName,
-      apiUnavailable: cache.data.apiUnavailable,
-      apiError: cache.data.apiError,
-    };
+    const data = parseCacheFile(content);
+    const ttl = data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
+    if (Date.now() - (data._timestamp ?? 0) >= ttl) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/** Read cache ignoring TTL — returns last known good data (with fiveHour set) or null */
+async function readStaleCache(): Promise<QuotaData | null> {
+  try {
+    const content = await readFile(CACHE_PATH, 'utf-8');
+    const data = parseCacheFile(content);
+    if (data.fiveHour != null) return data;
+    return null;
   } catch {
     return null;
   }
@@ -329,6 +347,13 @@ export async function getQuota(): Promise<QuotaData> {
           return refreshed;
         }
       }
+    }
+
+    // On server errors (5xx, timeout, network), serve stale cached data if available
+    // so the quota bar doesn't disappear during transient API outages.
+    if (apiResult.error !== 'http-401') {
+      const stale = await readStaleCache();
+      if (stale) return stale;
     }
 
     const result: QuotaData = {
