@@ -1,6 +1,7 @@
 /**
  * Fetches rate-limit quota from the Anthropic OAuth usage API.
- * Mirrors the approach used by claude-hud:
+ * Refreshes expired tokens automatically using the OAuth refresh flow.
+ *
  *   GET https://api.anthropic.com/api/oauth/usage
  *   Authorization: Bearer <oauth_token>
  *   anthropic-beta: oauth-2025-04-20
@@ -19,102 +20,60 @@ const CREDENTIALS_PATH = join(CLAUDE_DIR, '.credentials.json');
 const CACHE_DIR = join(CLAUDE_DIR, 'plugins', 'claude-office');
 const CACHE_PATH = join(CACHE_DIR, '.quota-cache.json');
 
-const CACHE_TTL_MS = 60_000;         // 60s for success
-const CACHE_FAILURE_TTL_MS = 15_000;  // 15s for failures
+const CACHE_TTL_MS = 60_000;
+const CACHE_FAILURE_TTL_MS = 15_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const KEYCHAIN_TIMEOUT_MS = 5_000;
 
-interface CacheFileData {
-  fiveHour: number | null;
-  sevenDay: number | null;
-  fiveHourResetAt: string | null;
-  sevenDayResetAt: string | null;
-  planName: string | null;
-  apiUnavailable?: boolean;
-  apiError?: string;
-}
+const OAUTH_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
+const OAUTH_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token';
 
 interface CacheFile {
-  data: CacheFileData;
+  data: {
+    fiveHour: number | null;
+    sevenDay: number | null;
+    fiveHourResetAt: string | null;
+    sevenDayResetAt: string | null;
+    planName: string | null;
+    apiUnavailable?: boolean;
+    apiError?: string;
+  };
   timestamp: number;
 }
 
-// --- Token retrieval ---
+// --- Credentials ---
 
-function getTokenFromKeychain(): string | null {
-  try {
-    const result = execFileSync(
-      '/usr/bin/security',
-      ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
-    ).trim();
-    if (!result) return null;
-    const data = JSON.parse(result);
-    const token = data?.claudeAiOauth?.accessToken;
-    if (!token) return null;
-    // Check expiry
-    const expiresAt = data.claudeAiOauth?.expiresAt;
-    if (expiresAt != null && expiresAt <= Date.now()) return null;
-    return token;
-  } catch {
-    return null;
-  }
+interface OAuthData {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  subscriptionType?: string;
 }
 
-async function getTokenFromFile(): Promise<string | null> {
-  try {
-    const content = await readFile(CREDENTIALS_PATH, 'utf-8');
-    const data = JSON.parse(content);
-    const token = data?.claudeAiOauth?.accessToken;
-    if (!token) return null;
-    const expiresAt = data.claudeAiOauth?.expiresAt;
-    if (expiresAt != null && expiresAt <= Date.now()) return null;
-    return token;
-  } catch {
-    return null;
-  }
-}
-
-function getSubscriptionType(data: any): string | null {
-  return data?.claudeAiOauth?.subscriptionType || null;
-}
-
-async function getCredentials(): Promise<{ token: string; subscriptionType: string | null } | null> {
-  // Try keychain first, then file
-  let keychainData: any = null;
+function readKeychainRaw(): OAuthData | null {
   try {
     const raw = execFileSync(
       '/usr/bin/security',
       ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
     ).trim();
-    if (raw) keychainData = JSON.parse(raw);
-  } catch { /* skip */ }
-
-  let fileData: any = null;
-  try {
-    const content = await readFile(CREDENTIALS_PATH, 'utf-8');
-    fileData = JSON.parse(content);
-  } catch { /* skip */ }
-
-  // Get token (keychain priority)
-  const keychainToken = keychainData?.claudeAiOauth?.accessToken;
-  const fileToken = fileData?.claudeAiOauth?.accessToken;
-  const token = keychainToken || fileToken;
-  if (!token) return null;
-
-  // Check expiry
-  const source = keychainToken ? keychainData : fileData;
-  const expiresAt = source?.claudeAiOauth?.expiresAt;
-  if (expiresAt != null && expiresAt <= Date.now()) return null;
-
-  // subscriptionType may be in either source
-  const subscriptionType = getSubscriptionType(keychainData) || getSubscriptionType(fileData);
-
-  return { token, subscriptionType };
+    if (!raw) return null;
+    return JSON.parse(raw)?.claudeAiOauth ?? null;
+  } catch {
+    return null;
+  }
 }
 
-function getPlanName(subscriptionType: string | null): string | null {
+async function readFileCredentials(): Promise<OAuthData | null> {
+  try {
+    const content = await readFile(CREDENTIALS_PATH, 'utf-8');
+    return JSON.parse(content)?.claudeAiOauth ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getPlanName(subscriptionType: string | undefined | null): string | null {
   if (!subscriptionType) return null;
   const lower = subscriptionType.toLowerCase();
   if (lower.includes('max')) return 'Max';
@@ -122,6 +81,112 @@ function getPlanName(subscriptionType: string | null): string | null {
   if (lower.includes('team')) return 'Team';
   if (lower.includes('api')) return null;
   return subscriptionType.charAt(0).toUpperCase() + subscriptionType.slice(1);
+}
+
+// --- Token refresh ---
+
+function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number } | null> {
+  return new Promise((resolve) => {
+    const body = `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}&client_id=${OAUTH_CLIENT_ID}`;
+    const url = new URL(OAUTH_TOKEN_URL);
+
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body),
+      },
+      timeout: REQUEST_TIMEOUT_MS,
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode !== 200) { resolve(null); return; }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.access_token) {
+            resolve({ accessToken: parsed.access_token, expiresIn: parsed.expires_in || 28800 });
+          } else {
+            resolve(null);
+          }
+        } catch { resolve(null); }
+      });
+    });
+
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+    req.write(body);
+    req.end();
+  });
+}
+
+async function getAccessToken(): Promise<{ token: string; planName: string | null; refreshToken?: string } | null> {
+  const keychain = readKeychainRaw();
+  const file = await readFileCredentials();
+  const source = keychain || file;
+  if (!source?.accessToken) return null;
+
+  const subscriptionType = keychain?.subscriptionType || file?.subscriptionType;
+  const planName = getPlanName(subscriptionType);
+  const refreshToken = keychain?.refreshToken || file?.refreshToken;
+
+  return { token: source.accessToken, planName, refreshToken };
+}
+
+/** Try to refresh an expired token and update the keychain */
+async function tryRefreshAndRetry(
+  refreshToken: string,
+  planName: string | null,
+): Promise<QuotaData | null> {
+  const refreshed = await refreshAccessToken(refreshToken);
+  if (!refreshed) return null;
+
+  // Update keychain with new token
+  try {
+    const raw = execFileSync(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
+    ).trim();
+    if (raw) {
+      const creds = JSON.parse(raw);
+      if (creds.claudeAiOauth) {
+        creds.claudeAiOauth.accessToken = refreshed.accessToken;
+        creds.claudeAiOauth.expiresAt = Date.now() + refreshed.expiresIn * 1000;
+
+        // Find account name
+        let account = 'claude';
+        try {
+          const info = execFileSync(
+            '/usr/bin/security',
+            ['find-generic-password', '-s', 'Claude Code-credentials'],
+            { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS }
+          );
+          const match = info.match(/"acct"<blob>="([^"]+)"/);
+          if (match) account = match[1];
+        } catch { /* use default */ }
+
+        execFileSync('/usr/bin/security', [
+          'add-generic-password', '-U', '-s', 'Claude Code-credentials',
+          '-a', account, '-w', JSON.stringify(creds),
+        ], { stdio: ['pipe', 'pipe', 'pipe'], timeout: KEYCHAIN_TIMEOUT_MS });
+      }
+    }
+  } catch { /* non-fatal: token still works for this request */ }
+
+  // Retry API call with fresh token
+  const apiResult = await fetchUsageApi(refreshed.accessToken);
+  if (apiResult.error) return null;
+
+  return {
+    fiveHour: parseUtilization(apiResult.data?.five_hour?.utilization),
+    sevenDay: parseUtilization(apiResult.data?.seven_day?.utilization),
+    fiveHourResetAt: parseDate(apiResult.data?.five_hour?.resets_at),
+    sevenDayResetAt: parseDate(apiResult.data?.seven_day?.resets_at),
+    planName,
+  };
 }
 
 // --- Cache ---
@@ -132,7 +197,6 @@ async function readCache(): Promise<QuotaData | null> {
     const cache: CacheFile = JSON.parse(content);
     const ttl = cache.data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
     if (Date.now() - cache.timestamp >= ttl) return null;
-
     return {
       fiveHour: cache.data.fiveHour,
       sevenDay: cache.data.sevenDay,
@@ -168,64 +232,50 @@ async function writeCache(data: QuotaData): Promise<void> {
 
 // --- API fetch ---
 
-function parseUtilization(value: number | undefined): number | null {
-  if (value == null) return null;
-  if (!Number.isFinite(value)) return null;
-  return Math.round(Math.max(0, Math.min(100, value)));
-}
-
-function parseDate(dateStr: string | undefined): Date | null {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return null;
-  return date;
-}
-
 function fetchUsageApi(accessToken: string): Promise<{ data?: any; error?: string }> {
   return new Promise((resolve) => {
-    const options = {
+    const req = https.request({
       hostname: 'api.anthropic.com',
       path: '/api/oauth/usage',
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'anthropic-beta': 'oauth-2025-04-20',
-        'User-Agent': 'claude-office/1.0',
+        'User-Agent': 'claude-office/2.0',
       },
       timeout: REQUEST_TIMEOUT_MS,
-    };
-
-    const req = https.request(options, (res) => {
+    }, (res) => {
       let body = '';
       res.on('data', (chunk: string) => { body += chunk; });
       res.on('end', () => {
-        if (res.statusCode !== 200) {
-          resolve({ error: `http-${res.statusCode}` });
-          return;
-        }
-        try {
-          resolve({ data: JSON.parse(body) });
-        } catch {
-          resolve({ error: 'parse' });
-        }
+        if (res.statusCode !== 200) { resolve({ error: `http-${res.statusCode}` }); return; }
+        try { resolve({ data: JSON.parse(body) }); } catch { resolve({ error: 'parse' }); }
       });
     });
-
     req.on('timeout', () => { req.destroy(); resolve({ error: 'timeout' }); });
-    req.on('error', () => { resolve({ error: 'network' }); });
+    req.on('error', () => resolve({ error: 'network' }));
     req.end();
   });
+}
+
+function parseUtilization(value: number | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.round(Math.max(0, Math.min(100, value)));
+}
+
+function parseDate(dateStr: string | undefined): Date | null {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? null : date;
 }
 
 // --- Main export ---
 
 export async function getQuota(): Promise<QuotaData> {
-  // Check cache
   const cached = await readCache();
   if (cached) return cached;
 
-  // Get credentials
-  const creds = await getCredentials();
+  const creds = await getAccessToken();
   if (!creds) {
     const result: QuotaData = {
       fiveHour: null, sevenDay: null,
@@ -236,10 +286,8 @@ export async function getQuota(): Promise<QuotaData> {
     return result;
   }
 
-  const planName = getPlanName(creds.subscriptionType);
-
   // API users don't have quota limits
-  if (!planName) {
+  if (!creds.planName) {
     const result: QuotaData = {
       fiveHour: null, sevenDay: null,
       fiveHourResetAt: null, sevenDayResetAt: null,
@@ -249,14 +297,22 @@ export async function getQuota(): Promise<QuotaData> {
     return result;
   }
 
-  // Fetch from API
   const apiResult = await fetchUsageApi(creds.token);
 
   if (apiResult.error) {
+    // On 401, try inline token refresh as fallback
+    if (apiResult.error === 'http-401' && creds.refreshToken) {
+      const refreshed = await tryRefreshAndRetry(creds.refreshToken, creds.planName);
+      if (refreshed) {
+        await writeCache(refreshed);
+        return refreshed;
+      }
+    }
+
     const result: QuotaData = {
       fiveHour: null, sevenDay: null,
       fiveHourResetAt: null, sevenDayResetAt: null,
-      planName, apiUnavailable: true, apiError: apiResult.error,
+      planName: creds.planName, apiUnavailable: true, apiError: apiResult.error,
     };
     await writeCache(result);
     return result;
@@ -267,9 +323,12 @@ export async function getQuota(): Promise<QuotaData> {
     sevenDay: parseUtilization(apiResult.data?.seven_day?.utilization),
     fiveHourResetAt: parseDate(apiResult.data?.five_hour?.resets_at),
     sevenDayResetAt: parseDate(apiResult.data?.seven_day?.resets_at),
-    planName,
+    planName: creds.planName,
   };
 
   await writeCache(result);
   return result;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = { getPlanName, parseUtilization, parseDate };

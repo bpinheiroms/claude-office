@@ -1,10 +1,13 @@
 /**
  * Usage/cost scanner for the statusline.
- * Scans JSONL files for token usage, aggregates into today/week buckets.
- * File-based cache with 30s TTL at ~/.claude/plugins/claude-office/.usage-cache.json
- * Per-file mtime cache persisted to disk to avoid re-parsing unchanged files.
+ * Scans JSONL files for token usage, prices per-model, aggregates into today/week/month.
  *
- * 100% Bun native APIs: Bun.file().stream(), Bun.write().
+ * Key design:
+ *   - Per-MESSAGE timestamp bucketing (not per-file) for accurate time-window costs.
+ *   - Each message's cost uses the specific model's API pricing.
+ *   - File-based cache stores daily cost breakdown per file (compact + re-bucketable).
+ *   - 30s TTL on the aggregate result; per-file mtime tracking avoids re-parsing unchanged files.
+ *   - Handles worktrees, multiple sessions, sub-agent files.
  */
 
 import { readdirSync, statSync, mkdirSync } from 'fs';
@@ -18,37 +21,80 @@ const CACHE_DIR = join(CLAUDE_DIR, 'plugins', 'claude-office');
 const CACHE_PATH = join(CACHE_DIR, '.usage-cache.json');
 const CACHE_TTL_MS = 30_000;
 
-// Opus pricing per 1M tokens
-const PRICE_INPUT = 15;
-const PRICE_OUTPUT = 75;
-const PRICE_CACHE_WRITE = 18.75;
-const PRICE_CACHE_READ = 1.50;
+// --- Model pricing (per 1M tokens, USD) ---
 
-// Billing cycle: Friday 14:00 local time
-const BILLING_CYCLE_DAY = 5;
+interface ModelPricing {
+  input: number;
+  output: number;
+  cacheWrite: number;
+  cacheRead: number;
+}
+
+const PRICING: Record<string, ModelPricing> = {
+  'opus-4.6':   { input: 5,    output: 25,   cacheWrite: 6.25,  cacheRead: 0.50 },
+  'opus-4.5':   { input: 5,    output: 25,   cacheWrite: 6.25,  cacheRead: 0.50 },
+  'opus-4.1':   { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'opus-4':     { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'sonnet-4.6': { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'sonnet-4.5': { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'sonnet-4':   { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'haiku-4.5':  { input: 1,    output: 5,    cacheWrite: 1.25,  cacheRead: 0.10 },
+  'haiku-3.5':  { input: 0.80, output: 4,    cacheWrite: 1.00,  cacheRead: 0.08 },
+};
+
+const DEFAULT_PRICING: ModelPricing = PRICING['opus-4.6'];
+
+function getPricing(modelId: string): ModelPricing {
+  const lower = modelId.toLowerCase();
+
+  // Extract family and version: "opus-4.6", "sonnet-4.5", etc.
+  const match = lower.match(/(opus|sonnet|haiku)-(\d+)[-.](\d+)/);
+  if (match) {
+    const key = `${match[1]}-${match[2]}.${match[3]}`;
+    if (PRICING[key]) return PRICING[key];
+  }
+
+  // Fallback: family-major (e.g. "opus-4")
+  const matchMajor = lower.match(/(opus|sonnet|haiku)-(\d+)/);
+  if (matchMajor) {
+    const key = `${matchMajor[1]}-${matchMajor[2]}`;
+    if (PRICING[key]) return PRICING[key];
+  }
+
+  return DEFAULT_PRICING;
+}
+
+// --- Billing cycle ---
+
+const BILLING_CYCLE_DAY = 5;  // Friday
 const BILLING_CYCLE_HOUR = 14;
+
+function getBillingCycleStart(now: Date): Date {
+  const day = now.getDay();
+  const hour = now.getHours();
+  let daysBack = (day - BILLING_CYCLE_DAY + 7) % 7;
+  if (daysBack === 0 && hour < BILLING_CYCLE_HOUR) daysBack = 7;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack, BILLING_CYCLE_HOUR, 0, 0, 0);
+}
+
+// --- Types ---
 
 export interface StatusLineUsage {
   todayCostUSD: number;
   weekCostUSD: number;
+  monthCostUSD: number;
 }
 
-interface TokenBucket {
-  inputTokens: number;
-  outputTokens: number;
-  cacheWriteTokens: number;
-  cacheReadTokens: number;
-}
-
-interface FileBucketEntry {
+/** Per-file cache: stores daily cost breakdown so we can re-bucket without re-parsing. */
+interface FileCostEntry {
   mtimeMs: number;
-  bucket: TokenBucket;
+  dailyCosts: Record<string, number>; // "2026-03-02" → USD
 }
 
 interface UsageCache {
   timestamp: number;
   usage: StatusLineUsage;
-  fileBuckets: Record<string, FileBucketEntry>;
+  fileCosts: Record<string, FileCostEntry>;
 }
 
 // --- Helpers ---
@@ -61,38 +107,60 @@ function safeMtimeMs(path: string): number {
   try { return statSync(path).mtimeMs; } catch { return 0; }
 }
 
-function emptyBucket(): TokenBucket {
-  return { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 };
+function toDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function addBucket(target: TokenBucket, src: TokenBucket): void {
-  target.inputTokens += src.inputTokens;
-  target.outputTokens += src.outputTokens;
-  target.cacheWriteTokens += src.cacheWriteTokens;
-  target.cacheReadTokens += src.cacheReadTokens;
+// --- Per-message parsing ---
+
+interface MessageCost {
+  dateKey: string;
+  costUSD: number;
 }
 
-function estimateCost(b: TokenBucket): number {
-  return (
-    (b.inputTokens / 1_000_000) * PRICE_INPUT +
-    (b.outputTokens / 1_000_000) * PRICE_OUTPUT +
-    (b.cacheWriteTokens / 1_000_000) * PRICE_CACHE_WRITE +
-    (b.cacheReadTokens / 1_000_000) * PRICE_CACHE_READ
-  );
+function parseMessageCost(line: string, fallbackDateKey: string): MessageCost | null {
+  try {
+    const msg = JSON.parse(line);
+    const message = msg.message;
+    if (!message?.usage) return null;
+
+    const model = message.model || '';
+    const usage = message.usage;
+    const pricing = getPricing(model);
+
+    const inputTokens = usage.input_tokens || 0;
+    const outputTokens = usage.output_tokens || 0;
+    const cacheWriteTokens = usage.cache_creation_input_tokens || 0;
+    const cacheReadTokens = usage.cache_read_input_tokens || 0;
+
+    const costUSD = (
+      (inputTokens / 1_000_000) * pricing.input +
+      (outputTokens / 1_000_000) * pricing.output +
+      (cacheWriteTokens / 1_000_000) * pricing.cacheWrite +
+      (cacheReadTokens / 1_000_000) * pricing.cacheRead
+    );
+
+    if (costUSD === 0) return null;
+
+    // Use message timestamp for accurate day bucketing
+    const rawTs = msg.timestamp;
+    let dateKey: string;
+    if (typeof rawTs === 'string' || typeof rawTs === 'number') {
+      const date = new Date(rawTs);
+      dateKey = isNaN(date.getTime()) ? fallbackDateKey : toDateKey(date);
+    } else {
+      dateKey = fallbackDateKey;
+    }
+
+    return { dateKey, costUSD };
+  } catch {
+    return null;
+  }
 }
 
-function getBillingCycleStart(now: Date): Date {
-  const day = now.getDay();
-  const hour = now.getHours();
-  let daysBack = (day - BILLING_CYCLE_DAY + 7) % 7;
-  if (daysBack === 0 && hour < BILLING_CYCLE_HOUR) daysBack = 7;
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack, BILLING_CYCLE_HOUR, 0, 0, 0);
-}
-
-// --- File parsing (Bun.file().stream()) ---
-
-async function parseFileUsage(filePath: string): Promise<TokenBucket> {
-  const bucket = emptyBucket();
+/** Parse a JSONL file into a daily cost breakdown. */
+async function parseFileDailyCosts(filePath: string, fallbackDateKey: string): Promise<Record<string, number>> {
+  const dailyCosts: Record<string, number> = {};
   try {
     const stream = Bun.file(filePath).stream();
     const decoder = new TextDecoder();
@@ -106,16 +174,10 @@ async function parseFileUsage(filePath: string): Promise<TokenBucket> {
         const line = text.substring(start, nl);
         start = nl + 1;
         if (line.includes('"usage"')) {
-          try {
-            const msg = JSON.parse(line);
-            const usage = msg.message?.usage;
-            if (usage) {
-              bucket.inputTokens += usage.input_tokens || 0;
-              bucket.outputTokens += usage.output_tokens || 0;
-              bucket.cacheWriteTokens += usage.cache_creation_input_tokens || 0;
-              bucket.cacheReadTokens += usage.cache_read_input_tokens || 0;
-            }
-          } catch { /* skip */ }
+          const result = parseMessageCost(line, fallbackDateKey);
+          if (result) {
+            dailyCosts[result.dateKey] = (dailyCosts[result.dateKey] || 0) + result.costUSD;
+          }
         }
         nl = text.indexOf('\n', start);
       }
@@ -123,114 +185,102 @@ async function parseFileUsage(filePath: string): Promise<TokenBucket> {
     }
 
     if (partial.includes('"usage"')) {
-      try {
-        const msg = JSON.parse(partial);
-        const usage = msg.message?.usage;
-        if (usage) {
-          bucket.inputTokens += usage.input_tokens || 0;
-          bucket.outputTokens += usage.output_tokens || 0;
-          bucket.cacheWriteTokens += usage.cache_creation_input_tokens || 0;
-          bucket.cacheReadTokens += usage.cache_read_input_tokens || 0;
-        }
-      } catch { /* skip */ }
+      const result = parseMessageCost(partial, fallbackDateKey);
+      if (result) {
+        dailyCosts[result.dateKey] = (dailyCosts[result.dateKey] || 0) + result.costUSD;
+      }
     }
   } catch { /* skip */ }
-  return bucket;
+  return dailyCosts;
 }
 
-// --- Cache (Bun.file / Bun.write) ---
+// --- Cache ---
 
-async function readCache(): Promise<{ usage: StatusLineUsage | null; fileBuckets: Record<string, FileBucketEntry> } | null> {
+async function readCache(): Promise<{ usage: StatusLineUsage | null; fileCosts: Record<string, FileCostEntry> } | null> {
   try {
     const file = Bun.file(CACHE_PATH);
     if (file.size === 0) return null;
     const raw = await file.text();
     const cache: UsageCache = JSON.parse(raw);
     if (Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      return { usage: cache.usage, fileBuckets: cache.fileBuckets };
+      return { usage: cache.usage, fileCosts: cache.fileCosts };
     }
-    // Cache expired — return fileBuckets for mtime optimization
-    return { usage: null, fileBuckets: cache.fileBuckets };
+    return { usage: null, fileCosts: cache.fileCosts };
   } catch { /* miss */ }
   return null;
 }
 
-async function writeCache(usage: StatusLineUsage, fileBuckets: Record<string, FileBucketEntry>): Promise<void> {
+async function writeCache(usage: StatusLineUsage, fileCosts: Record<string, FileCostEntry>): Promise<void> {
   try {
     mkdirSync(CACHE_DIR, { recursive: true });
-    await Bun.write(CACHE_PATH, JSON.stringify({ timestamp: Date.now(), usage, fileBuckets }));
+    await Bun.write(CACHE_PATH, JSON.stringify({ timestamp: Date.now(), usage, fileCosts }));
   } catch { /* skip */ }
 }
 
 // --- Main scan ---
 
-async function doScan(prevFileBuckets: Record<string, FileBucketEntry>): Promise<{ usage: StatusLineUsage; fileBuckets: Record<string, FileBucketEntry> }> {
+async function doScan(prevFileCosts: Record<string, FileCostEntry>): Promise<{ usage: StatusLineUsage; fileCosts: Record<string, FileCostEntry> }> {
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = toDateKey(now);
   const weekStart = getBillingCycleStart(now);
+  const weekStartKey = toDateKey(weekStart);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStartKey = toDateKey(monthStart);
 
-  const today = emptyBucket();
-  const week = emptyBucket();
-  const fileBuckets: Record<string, FileBucketEntry> = {};
+  let todayCost = 0;
+  let weekCost = 0;
+  let monthCost = 0;
+  const fileCosts: Record<string, FileCostEntry> = {};
+
+  /** Add a file's daily costs into the aggregate time-window buckets. */
+  function addToBuckets(dailyCosts: Record<string, number>) {
+    for (const [dateKey, cost] of Object.entries(dailyCosts)) {
+      if (dateKey >= monthStartKey) monthCost += cost;
+      if (dateKey >= weekStartKey) weekCost += cost;
+      if (dateKey === todayKey) todayCost += cost;
+    }
+  }
 
   const projectDirs = safeReaddirSync(PROJECTS_DIR);
   const parsePromises: Promise<void>[] = [];
 
+  // Only process files that could contain data within our time windows
+  const earliestCutoff = Math.min(weekStart.getTime(), monthStart.getTime());
+
+  function processFile(filePath: string, mtimeMs: number) {
+    if (!mtimeMs || mtimeMs < earliestCutoff) return;
+
+    // Reuse cached daily breakdown if file hasn't changed
+    const cached = prevFileCosts[filePath];
+    if (cached && cached.mtimeMs === mtimeMs && cached.dailyCosts) {
+      fileCosts[filePath] = cached;
+      addToBuckets(cached.dailyCosts);
+      return;
+    }
+
+    const fallbackDateKey = toDateKey(new Date(mtimeMs));
+    parsePromises.push(
+      parseFileDailyCosts(filePath, fallbackDateKey).then((dailyCosts) => {
+        fileCosts[filePath] = { mtimeMs, dailyCosts };
+        addToBuckets(dailyCosts);
+      })
+    );
+  }
+
   for (const projDir of projectDirs) {
     if (projDir === '-') continue;
     const projPath = join(PROJECTS_DIR, projDir);
-    const files = safeReaddirSync(projPath);
 
-    for (const f of files) {
+    for (const f of safeReaddirSync(projPath)) {
       if (!f.endsWith('.jsonl')) continue;
       const filePath = join(projPath, f);
-      const mtimeMs = safeMtimeMs(filePath);
-      if (!mtimeMs || mtimeMs < weekStart.getTime()) continue;
+      processFile(filePath, safeMtimeMs(filePath));
 
-      const isToday = mtimeMs >= todayStart.getTime();
-
-      // Check per-file mtime cache
-      const cached = prevFileBuckets[filePath];
-      if (cached && cached.mtimeMs === mtimeMs) {
-        fileBuckets[filePath] = cached;
-        if (isToday) addBucket(today, cached.bucket);
-        addBucket(week, cached.bucket);
-        continue;
-      }
-
-      // Need to parse — push async work
-      parsePromises.push(
-        parseFileUsage(filePath).then((bucket) => {
-          fileBuckets[filePath] = { mtimeMs, bucket };
-          if (isToday) addBucket(today, bucket);
-          addBucket(week, bucket);
-        })
-      );
-
-      // Sub-agent files
+      // Sub-agent files (worktrees, spawned agents)
       const subDir = join(projPath, f.replace('.jsonl', ''), 'subagents');
       for (const sf of safeReaddirSync(subDir)) {
         if (!sf.endsWith('.jsonl')) continue;
-        const subPath = join(subDir, sf);
-        const subMtime = safeMtimeMs(subPath);
-        if (!subMtime || subMtime < weekStart.getTime()) continue;
-
-        const subIsToday = subMtime >= todayStart.getTime();
-        const subCached = prevFileBuckets[subPath];
-        if (subCached && subCached.mtimeMs === subMtime) {
-          fileBuckets[subPath] = subCached;
-          if (subIsToday) addBucket(today, subCached.bucket);
-          addBucket(week, subCached.bucket);
-          continue;
-        }
-
-        parsePromises.push(
-          parseFileUsage(subPath).then((bucket) => {
-            fileBuckets[subPath] = { mtimeMs: subMtime, bucket };
-            if (subIsToday) addBucket(today, bucket);
-            addBucket(week, bucket);
-          })
-        );
+        processFile(join(subDir, sf), safeMtimeMs(join(subDir, sf)));
       }
     }
   }
@@ -238,20 +288,22 @@ async function doScan(prevFileBuckets: Record<string, FileBucketEntry>): Promise
   await Promise.all(parsePromises);
 
   return {
-    usage: { todayCostUSD: estimateCost(today), weekCostUSD: estimateCost(week) },
-    fileBuckets,
+    usage: { todayCostUSD: todayCost, weekCostUSD: weekCost, monthCostUSD: monthCost },
+    fileCosts,
   };
 }
 
 export async function scanUsage(): Promise<StatusLineUsage> {
   const cached = await readCache();
-
-  // Fresh cache — return immediately
   if (cached?.usage) return cached.usage;
 
-  // Stale or missing — scan with mtime optimization
-  const prevBuckets = cached?.fileBuckets ?? {};
-  const result = await doScan(prevBuckets);
-  await writeCache(result.usage, result.fileBuckets);
+  const prevCosts = cached?.fileCosts ?? {};
+  const result = await doScan(prevCosts);
+  await writeCache(result.usage, result.fileCosts);
   return result.usage;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+  getPricing, getBillingCycleStart, toDateKey, parseMessageCost,
+};

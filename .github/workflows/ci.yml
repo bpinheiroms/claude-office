@@ -14,6 +14,16 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+
   test-statusline:
     runs-on: ubuntu-latest
     steps:

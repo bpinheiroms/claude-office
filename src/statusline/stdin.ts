@@ -9,6 +9,7 @@ export interface StdinData {
   contextTokens: number;
   contextWindowSize: number;
   cwd: string;
+  transcriptPath: string;
 }
 
 export function parseStdin(raw: string): StdinData {
@@ -18,6 +19,7 @@ export function parseStdin(raw: string): StdinData {
     contextTokens: 0,
     contextWindowSize: 200_000,
     cwd: '',
+    transcriptPath: '',
   };
 
   if (!raw.trim()) return defaults;
@@ -25,14 +27,26 @@ export function parseStdin(raw: string): StdinData {
   try {
     const data = JSON.parse(raw);
     const modelName = data?.model?.display_name || '';
-    const inputTokens = data?.context_window?.current_usage?.input_tokens || 0;
-    const windowSize = data?.context_window?.context_window_size || 200_000;
-    const contextPercent = windowSize > 0
-      ? Math.min(100, Math.round((inputTokens / windowSize) * 100))
-      : 0;
-    const cwd = data?.cwd || '';
+    const ctxWindow = data?.context_window;
+    const windowSize = ctxWindow?.context_window_size || 200_000;
 
-    return { modelName, contextPercent, contextTokens: inputTokens, contextWindowSize: windowSize, cwd };
+    // Prefer the pre-computed used_percentage from Claude Code
+    let contextPercent = ctxWindow?.used_percentage ?? 0;
+    if (!contextPercent && ctxWindow?.current_usage) {
+      // Fallback: compute from total tokens
+      const totalInput = (ctxWindow.current_usage.input_tokens || 0)
+        + (ctxWindow.current_usage.cache_read_input_tokens || 0)
+        + (ctxWindow.current_usage.cache_creation_input_tokens || 0);
+      contextPercent = windowSize > 0
+        ? Math.min(100, Math.round((totalInput / windowSize) * 100))
+        : 0;
+    }
+
+    const contextTokens = ctxWindow?.total_input_tokens || 0;
+    const cwd = data?.cwd || '';
+    const transcriptPath = data?.transcript_path || '';
+
+    return { modelName, contextPercent, contextTokens, contextWindowSize: windowSize, cwd, transcriptPath };
   } catch {
     return defaults;
   }
