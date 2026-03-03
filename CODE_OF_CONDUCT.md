@@ -12,6 +12,6 @@ We are committed to providing a friendly, safe, and welcoming environment for al
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to bruno@brunosilva.dev. All complaints will be reviewed and investigated.
+Instances of unacceptable behavior may be reported to contato@bridglabs.com. All complaints will be reviewed and investigated.
 
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1.

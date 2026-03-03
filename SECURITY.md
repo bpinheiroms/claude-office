@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Please report security vulnerabilities privately via email to **bruno@brunosilva.dev**.
+Please report security vulnerabilities privately via email to **contato@bridglabs.com**.
 
 Do not open a public GitHub issue for security vulnerabilities.
 
