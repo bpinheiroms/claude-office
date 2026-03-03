@@ -97,7 +97,7 @@ Every data source has its own persistent file cache at `~/.claude/plugins/claude
 ### Expanded (preset: `full`)
 
 ```text
-Line 1: Plan  Today $XX  Week $XXX  Month $XXX  Monthly Saving +$XX
+Line 1: Plan Max  Today $XX  Week $XXX  Month $XXX  Monthly Saving +$XX
 Line 2: 5h ●●○○○○○○○○ XX%  7d ●●●○○○○○○○ XX%  Current Context ●●●●●○○○○○ XX%
 Line 3: ◐ Read: .../file.ts | ✓ Edit ×10 | ✓ Bash ×3          (tools)
 Line 4: ◐ Explore [sonnet]: Searching auth module (2m 15s)     (agents)
@@ -109,10 +109,11 @@ Lines 3-5 only appear when there's activity and the corresponding config flag is
 ### Compact (preset: `minimal`)
 
 ```text
-Max  5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%  Today $51  Monthly Saving +$16
+Plan Max  Today $51  Monthly Saving +$16
+5h ●●○○○○○○○○ 14%  Current Context ●●●●○○○○○○ 43%
 ```
 
-Everything on a single line.
+Same two-line structure as expanded, with fewer elements enabled.
 
 ## Key patterns
 

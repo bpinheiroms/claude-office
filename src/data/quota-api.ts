@@ -300,12 +300,34 @@ export async function getQuota(): Promise<QuotaData> {
   const apiResult = await fetchUsageApi(creds.token);
 
   if (apiResult.error) {
-    // On 401, try inline token refresh as fallback
-    if (apiResult.error === 'http-401' && creds.refreshToken) {
-      const refreshed = await tryRefreshAndRetry(creds.refreshToken, creds.planName);
-      if (refreshed) {
-        await writeCache(refreshed);
-        return refreshed;
+    if (apiResult.error === 'http-401') {
+      // Re-read keychain — Claude Code may have refreshed the token since our first read.
+      // This handles the common case where our cached/initial read was stale but CC already
+      // updated the keychain in the background (race condition with concurrent sessions).
+      const freshCreds = await getAccessToken();
+      if (freshCreds && freshCreds.token !== creds.token) {
+        const retryResult = await fetchUsageApi(freshCreds.token);
+        if (!retryResult.error) {
+          const result: QuotaData = {
+            fiveHour: parseUtilization(retryResult.data?.five_hour?.utilization),
+            sevenDay: parseUtilization(retryResult.data?.seven_day?.utilization),
+            fiveHourResetAt: parseDate(retryResult.data?.five_hour?.resets_at),
+            sevenDayResetAt: parseDate(retryResult.data?.seven_day?.resets_at),
+            planName: freshCreds.planName ?? creds.planName,
+          };
+          await writeCache(result);
+          return result;
+        }
+      }
+
+      // Last resort: try OAuth refresh flow
+      const refreshToken = freshCreds?.refreshToken ?? creds.refreshToken;
+      if (refreshToken) {
+        const refreshed = await tryRefreshAndRetry(refreshToken, creds.planName);
+        if (refreshed) {
+          await writeCache(refreshed);
+          return refreshed;
+        }
       }
     }
 
