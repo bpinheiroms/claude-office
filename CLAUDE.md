@@ -52,9 +52,11 @@ src/
 .claude-plugin/
   plugin.json               # Claude Code plugin metadata (name, commands, version)
   marketplace.json          # Plugin marketplace listing
-commands/
-  setup.md                  # /claude-office:setup — configures statusline in settings.json
-  configure.md              # /claude-office:configure — interactive display configuration
+skills/
+  setup/
+    SKILL.md                # /claude-office:setup — configures statusline in settings.json
+  configure/
+    SKILL.md                # /claude-office:configure — interactive display configuration
 ```
 
 ## Execution flow
