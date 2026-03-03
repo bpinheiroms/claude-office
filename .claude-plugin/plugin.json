@@ -15,17 +15,8 @@
     "costs",
     "claude-code"
   ],
-  "main": "src/statusline/index.ts",
   "commands": [
-    {
-      "name": "setup",
-      "description": "Configure Claude Office as your Claude Code statusline",
-      "file": "commands/setup.md"
-    },
-    {
-      "name": "configure",
-      "description": "Configure Claude Office display options (layout, presets, display elements)",
-      "file": "commands/configure.md"
-    }
+    "commands/setup.md",
+    "commands/configure.md"
   ]
 }
