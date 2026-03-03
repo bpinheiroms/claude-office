@@ -5,28 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-03-03
-
-### BREAKING CHANGES
-- v2.0.0 — lightweight statusline-only architecture
-
-### Added
-- v2.1 — UX improvements, incremental transcript, modular render
-- v2.0.0 — lightweight statusline-only architecture
-
-### Fixed
-- config cache test uses toEqual for CI compatibility
-- address CodeRabbit review findings
-- unify context color with quota bars and rename to Current Context
-- update lockfile and remove HUD reference from plugin.json
-
-### Changed
-- add 212 unit tests with bun test infrastructure
-
-### Documentation
-- add full and minimal preset preview screenshots
-- comprehensive CLAUDE.md with rules, patterns, and conventions
-
 ## [1.1.1] - 2026-03-02
 
 ### Fixed
